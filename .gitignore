@@ -7,6 +7,19 @@ dist/
 build/
 *.class
 
+# Expo / React Native
+.expo/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+*.tsbuildinfo
+/ios
+/android
+
 # Environment / secrets
 .env
 .env.*
