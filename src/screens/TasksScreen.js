@@ -66,7 +66,7 @@ export default function TasksScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <ScreenHeader kicker="EPIC · TAREFAS" title="Tarefas da casa" />
+      <ScreenHeader kicker="TAREFAS" title="Tarefas da casa" />
 
       <View style={styles.body}>
         <FlatList

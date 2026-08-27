@@ -18,7 +18,7 @@ export default function SummaryScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <ScreenHeader kicker="EPIC · DESPESAS" title="Resumo de saldos" />
+      <ScreenHeader kicker="SALDOS" title="Resumo de saldos" />
 
       <View style={styles.body}>
         <View style={styles.totalCard}>
