@@ -20,10 +20,10 @@ export function AuthProvider({ children }) {
     }
   }
 
-  async function register(name, email, password) {
+  async function register(name, email, password, phone = "") {
     setIsLoading(true);
     try {
-      const result = await authService.register(name, email, password);
+      const result = await authService.register(name, email, password, phone);
       if (result.success) {
         setUser(result.user);
       }
