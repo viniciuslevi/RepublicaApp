@@ -65,24 +65,27 @@ export default function TasksScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ScreenHeader kicker="EPIC · TAREFAS" title="Tarefas da casa" />
 
-      <FlatList
-        data={tasks}
-        keyExtractor={(t) => t.id}
-        renderItem={renderTask}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <Text style={styles.empty}>Nenhuma tarefa cadastrada ainda.</Text>
-        }
-      />
+      <View style={styles.body}>
+        <FlatList
+          data={tasks}
+          keyExtractor={(t) => t.id}
+          renderItem={renderTask}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            <Text style={styles.empty}>Nenhuma tarefa cadastrada ainda.</Text>
+          }
+        />
 
-      <Pressable style={styles.fab} onPress={() => setAddModalVisible(true)}>
-        <Ionicons name="add" size={28} color={colors.white} />
-      </Pressable>
+        <Pressable style={styles.fab} onPress={() => setAddModalVisible(true)}>
+          <Ionicons name="add" size={28} color={colors.white} />
+        </Pressable>
+      </View>
 
       {/* Modal: atribuir responsável */}
+
       <Modal visible={!!assignModalTask} transparent animationType="fade">
         <Pressable style={styles.overlay} onPress={() => setAssignModalTask(null)}>
           <View style={styles.sheet}>
@@ -144,8 +147,10 @@ export default function TasksScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1, backgroundColor: colors.primary },
+  body: { flex: 1, backgroundColor: colors.background },
   list: { padding: 16, paddingBottom: 100 },
+
   empty: { textAlign: "center", color: colors.textMuted, marginTop: 40 },
   taskCard: {
     flexDirection: "row",

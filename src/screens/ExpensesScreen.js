@@ -45,7 +45,7 @@ export default function ExpensesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ScreenHeader kicker="EPIC · DESPESAS" title="Despesas do grupo" />
       <KeyboardAvoidingView
         style={styles.flex}
@@ -122,9 +122,10 @@ export default function ExpensesScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  flex: { flex: 1 },
+  safe: { flex: 1, backgroundColor: colors.primary },
+  flex: { flex: 1, backgroundColor: colors.background },
   list: { padding: 16, paddingBottom: 40 },
+
   form: { marginBottom: 8 },
   label: { color: colors.textDark, fontWeight: "700", marginBottom: 6, marginTop: 12, fontSize: 13.5 },
   input: {

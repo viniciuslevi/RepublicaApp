@@ -17,55 +17,58 @@ export default function SummaryScreen() {
   const { balances, totalExpenses } = useAppData();
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ScreenHeader kicker="EPIC · DESPESAS" title="Resumo de saldos" />
 
-      <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Total gasto pelo grupo</Text>
-        <Text style={styles.totalValue}>{formatCurrency(totalExpenses)}</Text>
-      </View>
+      <View style={styles.body}>
+        <View style={styles.totalCard}>
+          <Text style={styles.totalLabel}>Total gasto pelo grupo</Text>
+          <Text style={styles.totalValue}>{formatCurrency(totalExpenses)}</Text>
+        </View>
 
-      <View style={styles.noticeBox}>
-        <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
-        <Text style={styles.noticeText}>
-          Resumo meramente informativo — não há integração bancária nem cobrança automática.
-        </Text>
-      </View>
+        <View style={styles.noticeBox}>
+          <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
+          <Text style={styles.noticeText}>
+            Resumo meramente informativo — não há integração bancária nem cobrança automática.
+          </Text>
+        </View>
 
-      <FlatList
-        data={balances}
-        keyExtractor={(b) => b.resident.id}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <Text style={styles.empty}>Nenhuma despesa registrada — sem saldos a mostrar.</Text>
-        }
-        renderItem={({ item }) => {
-          const positive = item.balance >= 0;
-          return (
-            <View style={styles.row}>
-              <Avatar name={item.resident.name} size={36} />
-              <View style={styles.rowBody}>
-                <Text style={styles.residentName}>{item.resident.name}</Text>
-                <Text style={styles.residentMeta}>
-                  Pagou {formatCurrency(item.paid)} · Cota {formatCurrency(item.share)}
-                </Text>
+        <FlatList
+          data={balances}
+          keyExtractor={(b) => b.resident.id}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            <Text style={styles.empty}>Nenhuma despesa registrada — sem saldos a mostrar.</Text>
+          }
+          renderItem={({ item }) => {
+            const positive = item.balance >= 0;
+            return (
+              <View style={styles.row}>
+                <Avatar name={item.resident.name} size={36} />
+                <View style={styles.rowBody}>
+                  <Text style={styles.residentName}>{item.resident.name}</Text>
+                  <Text style={styles.residentMeta}>
+                    Pagou {formatCurrency(item.paid)} · Cota {formatCurrency(item.share)}
+                  </Text>
+                </View>
+                <View style={styles.balanceWrap}>
+                  <Text style={[styles.balanceValue, { color: positive ? colors.accent : colors.danger }]}>
+                    {formatCurrency(item.balance)}
+                  </Text>
+                  <Text style={styles.balanceHint}>{positive ? "a receber" : "a pagar"}</Text>
+                </View>
               </View>
-              <View style={styles.balanceWrap}>
-                <Text style={[styles.balanceValue, { color: positive ? colors.accent : colors.danger }]}>
-                  {formatCurrency(item.balance)}
-                </Text>
-                <Text style={styles.balanceHint}>{positive ? "a receber" : "a pagar"}</Text>
-              </View>
-            </View>
-          );
-        }}
-      />
+            );
+          }}
+        />
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safe: { flex: 1, backgroundColor: colors.primary },
+  body: { flex: 1, backgroundColor: colors.background },
   totalCard: {
     margin: 16,
     marginBottom: 8,
@@ -73,6 +76,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
   },
+
   totalLabel: { color: colors.accentLight, fontSize: 13, fontWeight: "600" },
   totalValue: { color: colors.white, fontSize: 30, fontWeight: "800", marginTop: 6 },
   noticeBox: {
