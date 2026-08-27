@@ -193,15 +193,14 @@ export default function LoginScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Footer / Alternative Entry */}
+            {/* Footer / Register Placeholder */}
             <View style={styles.footer}>
               <Pressable
-                onPress={() => navigation.navigate("SelectResidence")}
                 style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
               >
                 <Text style={styles.footerLink}>
-                  Deseja entrar em outra moradia?{" "}
-                  <Text style={styles.footerLinkBold}>Ver opções de residência</Text>
+                  Ainda não tem uma conta?{" "}
+                  <Text style={styles.footerLinkAccent}>Criar agora!</Text>
                 </Text>
               </Pressable>
             </View>
@@ -211,6 +210,7 @@ export default function LoginScreen({ navigation }) {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   safe: {
@@ -398,11 +398,12 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: 13.5,
     textAlign: "center",
   },
-  footerLinkBold: {
+  footerLinkAccent: {
     color: colors.accent,
     fontWeight: "700",
   },
 });
+
