@@ -9,6 +9,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -76,28 +77,44 @@ const RECURRENCE_OPTIONS = [
 
 export default function TasksScreen() {
   const { user } = useAuth();
-  const { tasks, residents, residentById, toggleTaskDone, assignTask, addTask } = useAppData();
+  const {
+    tasks,
+    residents,
+    residentById,
+    toggleTaskDone,
+    assignTask,
+    addTask,
+    updateTask,
+    deleteTask,
+    deleteTasks,
+  } = useAppData();
 
   // Estados dos modais
   const [assignModalTask, setAssignModalTask] = useState(null);
-  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalMode, setModalMode] = useState("create"); // "create" | "edit"
+  const [editingTask, setEditingTask] = useState(null);
 
-  // Controle de pastas abertas/fechadas (Tarefas Pontuais e Diárias iniciam abertas)
+  // Modo de seleção múltipla para exclusão (ativado via Long Press)
+  const [selectedTaskIds, setSelectedTaskIds] = useState([]);
+
+  // Controle de pastas abertas/fechadas: todas iniciam FECHADAS ao entrar na tela
   const [openFolders, setOpenFolders] = useState({
-    Única: true,
-    Diária: true,
+    Única: false,
+    Diária: false,
     Semanal: false,
     Mensal: false,
   });
 
-  // Estados do formulário de criação de tarefas
-  const [newTitle, setNewTitle] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-  const [newRecurrence, setNewRecurrence] = useState("Única");
-  const [newAssigneeId, setNewAssigneeId] = useState(null);
-  const [addError, setAddError] = useState("");
+  // Estados do formulário de criação/edição de tarefas
+  const [formTitle, setFormTitle] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formRecurrence, setFormRecurrence] = useState("Única");
+  const [formAssigneeId, setFormAssigneeId] = useState(null);
+  const [formError, setFormError] = useState("");
 
   const isFocused = useIsFocused();
+  const isSelectionMode = selectedTaskIds.length > 0;
 
   // Identifica o perfil de morador vinculado ao usuário logado
   const currentResident = useMemo(() => {
@@ -114,11 +131,12 @@ export default function TasksScreen() {
 
   const currentResidentId = currentResident?.id;
 
-  // Fecha modais automaticamente ao perder foco de tela
+  // Fecha modais e desativa seleção automaticamente ao perder foco de tela
   useEffect(() => {
     if (!isFocused) {
       setAssignModalTask(null);
-      setAddModalVisible(false);
+      setModalVisible(false);
+      setSelectedTaskIds([]);
     }
   }, [isFocused]);
 
@@ -129,38 +147,124 @@ export default function TasksScreen() {
     }));
   }
 
-  function handleOpenAddModal(defaultRecurrence = "Única") {
-    setNewTitle("");
-    setNewDescription("");
-    setNewRecurrence(defaultRecurrence || "Única");
-    setNewAssigneeId(currentResidentId || null);
-    setAddError("");
-    setAddModalVisible(true);
+  // Abre modal para Criar Nova Tarefa
+  function handleOpenCreateModal(defaultRecurrence = "Única") {
+    setModalMode("create");
+    setEditingTask(null);
+    setFormTitle("");
+    setFormDescription("");
+    setFormRecurrence(defaultRecurrence || "Única");
+    setFormAssigneeId(currentResidentId || null);
+    setFormError("");
+    setModalVisible(true);
   }
 
-  function handleCloseAddModal() {
-    setNewTitle("");
-    setNewDescription("");
-    setNewRecurrence("Única");
-    setNewAssigneeId(null);
-    setAddError("");
-    setAddModalVisible(false);
-  }
-
-  function handleCreateTask() {
-    if (!newTitle.trim()) {
-      setAddError("Informe o nome da tarefa.");
+  // Abre modal para Editar Tarefa Existente (Toque simples na tarefa)
+  function handleOpenEditModal(task) {
+    if (isSelectionMode) {
+      toggleSelectTask(task.id);
       return;
     }
 
-    addTask({
-      title: newTitle.trim(),
-      description: newDescription.trim(),
-      assigneeId: newAssigneeId,
-      recurrence: newRecurrence,
-    });
+    setModalMode("edit");
+    setEditingTask(task);
+    setFormTitle(task.title || "");
+    setFormDescription(task.description || "");
+    setFormRecurrence(
+      task.recurrence === "Sem recorrência" || !task.recurrence
+        ? "Única"
+        : task.recurrence
+    );
+    setFormAssigneeId(task.assigneeId || null);
+    setFormError("");
+    setModalVisible(true);
+  }
 
-    handleCloseAddModal();
+  function handleCloseModal() {
+    setModalVisible(false);
+    setEditingTask(null);
+    setFormTitle("");
+    setFormDescription("");
+    setFormRecurrence("Única");
+    setFormAssigneeId(null);
+    setFormError("");
+  }
+
+  // Salva criação ou edição de tarefa
+  function handleSaveTask() {
+    if (!formTitle.trim()) {
+      setFormError("Informe o nome da tarefa.");
+      return;
+    }
+
+    if (modalMode === "create") {
+      addTask({
+        title: formTitle.trim(),
+        description: formDescription.trim(),
+        assigneeId: formAssigneeId,
+        recurrence: formRecurrence,
+      });
+
+      // Abre a pasta correspondente para visualizar a tarefa criada
+      setOpenFolders((prev) => ({
+        ...prev,
+        [formRecurrence]: true,
+      }));
+    } else if (modalMode === "edit" && editingTask) {
+      updateTask(editingTask.id, {
+        title: formTitle.trim(),
+        description: formDescription.trim(),
+        assigneeId: formAssigneeId,
+        recurrence: formRecurrence,
+      });
+
+      // Abre a pasta para onde a tarefa foi destinada caso tenha mudado
+      setOpenFolders((prev) => ({
+        ...prev,
+        [formRecurrence]: true,
+      }));
+    }
+
+    handleCloseModal();
+  }
+
+  // Exclui tarefa individualmente a partir do modal de edição
+  function handleDeleteSingleTaskFromModal() {
+    if (!editingTask) return;
+
+    deleteTask(editingTask.id);
+    handleCloseModal();
+  }
+
+  // Ativa seleção com Long Press
+  function handleLongPressTask(taskId) {
+    if (selectedTaskIds.includes(taskId)) {
+      setSelectedTaskIds((prev) => prev.filter((id) => id !== taskId));
+    } else {
+      setSelectedTaskIds((prev) => [...prev, taskId]);
+    }
+  }
+
+  // Alterna seleção de tarefa quando em modo de seleção
+  function toggleSelectTask(taskId) {
+    if (selectedTaskIds.includes(taskId)) {
+      setSelectedTaskIds((prev) => prev.filter((id) => id !== taskId));
+    } else {
+      setSelectedTaskIds((prev) => [...prev, taskId]);
+    }
+  }
+
+  // Cancela o modo de seleção
+  function handleCancelSelection() {
+    setSelectedTaskIds([]);
+  }
+
+  // Exclui todas as tarefas selecionadas
+  function handleDeleteSelectedTasks() {
+    if (selectedTaskIds.length === 0) return;
+
+    deleteTasks(selectedTaskIds);
+    setSelectedTaskIds([]);
   }
 
   // Agrupamento de tarefas por pasta de recorrência
@@ -227,6 +331,47 @@ export default function TasksScreen() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ScreenHeader kicker="TAREFAS" title="Tarefas da casa" />
 
+      {/* BARRA DE AÇÃO FLUTUANTE DE SELEÇÃO / EXCLUSÃO (Modo Long Press) */}
+      {isSelectionMode ? (
+        <View style={styles.selectionBar}>
+          <View style={styles.selectionInfo}>
+            <View style={styles.selectionBadge}>
+              <Text style={styles.selectionBadgeText}>
+                {selectedTaskIds.length}
+              </Text>
+            </View>
+            <Text style={styles.selectionText}>
+              {selectedTaskIds.length === 1
+                ? "1 tarefa selecionada"
+                : `${selectedTaskIds.length} tarefas selecionadas`}
+            </Text>
+          </View>
+
+          <View style={styles.selectionActions}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.deleteSelectedBtn,
+                pressed && { opacity: 0.8 },
+              ]}
+              onPress={handleDeleteSelectedTasks}
+            >
+              <Ionicons name="trash" size={17} color={colors.white} />
+              <Text style={styles.deleteSelectedText}>Excluir</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.cancelSelectionBtn,
+                pressed && { opacity: 0.8 },
+              ]}
+              onPress={handleCancelSelection}
+            >
+              <Ionicons name="close" size={20} color={colors.white} />
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.body}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -271,6 +416,14 @@ export default function TasksScreen() {
                 )
               </Text>
             </View>
+          </View>
+
+          {/* Dica de navegação e atalhos */}
+          <View style={styles.foldersNoticeRow}>
+            <Ionicons name="information-circle-outline" size={15} color={colors.textMuted} />
+            <Text style={styles.foldersNoticeText}>
+              Toque para editar · Segure para selecionar e remover
+            </Text>
           </View>
 
           {/* Renderização das Pastas em Ordem de Prioridade */}
@@ -385,7 +538,7 @@ export default function TasksScreen() {
                         </Text>
                         <Pressable
                           style={styles.emptyFolderBtn}
-                          onPress={() => handleOpenAddModal(folder.id)}
+                          onPress={() => handleOpenCreateModal(folder.id)}
                         >
                           <Ionicons
                             name="add-circle"
@@ -410,45 +563,76 @@ export default function TasksScreen() {
                           // HIGHLIGHT: Ativo apenas enquanto a tarefa do usuário logado NÃO estiver concluída
                           const isMyPendingTask = isAssignedToMe && !item.done;
 
+                          // SELEÇÃO PARA EXCLUSÃO (Long Press)
+                          const isSelectedForDeletion = selectedTaskIds.includes(
+                            item.id
+                          );
+
                           return (
-                            <View
+                            <Pressable
                               key={item.id}
-                              style={[
+                              style={({ pressed }) => [
                                 styles.taskItem,
                                 isMyPendingTask && styles.taskItemMyPending,
+                                isSelectedForDeletion &&
+                                  styles.taskItemSelectedForDeletion,
                                 item.done && styles.taskItemDone,
+                                pressed && { opacity: 0.9 },
                               ]}
+                              onPress={() => handleOpenEditModal(item)}
+                              onLongPress={() => handleLongPressTask(item.id)}
+                              delayLongPress={300}
                             >
-                              {/* Checkbox de Conclusão */}
-                              <Pressable
-                                onPress={() => toggleTaskDone(item.id)}
-                                style={styles.checkWrap}
-                                hitSlop={8}
-                              >
+                              {/* Checkbox de Seleção no Modo de Exclusão OU Conclusão */}
+                              {isSelectionMode ? (
                                 <View
                                   style={[
-                                    styles.checkbox,
-                                    isMyPendingTask && styles.checkboxMyPending,
-                                    item.done && styles.checkboxDone,
+                                    styles.selectionCircle,
+                                    isSelectedForDeletion &&
+                                      styles.selectionCircleActive,
                                   ]}
                                 >
-                                  {item.done ? (
+                                  {isSelectedForDeletion ? (
                                     <Ionicons
-                                      name="checkmark"
-                                      size={15}
+                                      name="trash"
+                                      size={13}
                                       color={colors.white}
                                     />
-                                  ) : null}
+                                  ) : (
+                                    <View style={styles.selectionCircleEmpty} />
+                                  )}
                                 </View>
-                              </Pressable>
+                              ) : (
+                                <Pressable
+                                  onPress={() => toggleTaskDone(item.id)}
+                                  style={styles.checkWrap}
+                                  hitSlop={8}
+                                >
+                                  <View
+                                    style={[
+                                      styles.checkbox,
+                                      isMyPendingTask && styles.checkboxMyPending,
+                                      item.done && styles.checkboxDone,
+                                    ]}
+                                  >
+                                    {item.done ? (
+                                      <Ionicons
+                                        name="checkmark"
+                                        size={15}
+                                        color={colors.white}
+                                      />
+                                    ) : null}
+                                  </View>
+                                </Pressable>
+                              )}
 
                               {/* Conteúdo textual da Tarefa */}
                               <View style={styles.taskTextWrap}>
-                                {isMyPendingTask ? (
+                                {isMyPendingTask && !isSelectedForDeletion ? (
                                   <View style={styles.myTaskNoticeBadge}>
                                     <Ionicons
                                       name="person"
-                                      size={11}
+                                      size={10}
                                       color={colors.white}
                                     />
                                     <Text style={styles.myTaskNoticeBadgeText}>
@@ -461,6 +645,8 @@ export default function TasksScreen() {
                                   style={[
                                     styles.taskTitle,
                                     isMyPendingTask && styles.taskTitleMyPending,
+                                    isSelectedForDeletion &&
+                                      styles.taskTitleSelected,
                                     item.done && styles.taskTitleDone,
                                   ]}
                                 >
@@ -481,50 +667,64 @@ export default function TasksScreen() {
                               </View>
 
                               {/* Atribuição de Responsável */}
-                              <Pressable
-                                style={({ pressed }) => [
-                                  styles.assignBtn,
-                                  pressed && { opacity: 0.75 },
-                                ]}
-                                onPress={() => setAssignModalTask(item)}
-                                hitSlop={6}
-                              >
-                                {assignee ? (
-                                  <View
-                                    style={[
-                                      styles.assigneePill,
-                                      isMyPendingTask &&
-                                        styles.assigneePillMyPending,
-                                    ]}
-                                  >
-                                    <Avatar name={assignee.name} size={22} />
-                                    <Text
+                              {!isSelectionMode ? (
+                                <Pressable
+                                  style={({ pressed }) => [
+                                    styles.assignBtn,
+                                    pressed && { opacity: 0.75 },
+                                  ]}
+                                  onPress={() => setAssignModalTask(item)}
+                                  hitSlop={6}
+                                >
+                                  {assignee ? (
+                                    <View
                                       style={[
-                                        styles.assigneeName,
+                                        styles.assigneePill,
                                         isMyPendingTask &&
-                                          styles.assigneeNameMyPending,
+                                          styles.assigneePillMyPending,
                                       ]}
-                                      numberOfLines={1}
                                     >
-                                      {isAssignedToMe
-                                        ? "Você"
-                                        : assignee.name}
-                                    </Text>
-                                  </View>
-                                ) : (
-                                  <View style={styles.unassignedPill}>
-                                    <Ionicons
-                                      name="person-add-outline"
-                                      size={12}
-                                      color={colors.accent}
-                                    />
-                                    <Text style={styles.unassignedText}>
-                                      Atribuir
-                                    </Text>
-                                  </View>
-                                )}
-                              </Pressable>
-                            </View>
+                                      <Avatar name={assignee.name} size={22} />
+                                      <Text
+                                        style={[
+                                          styles.assigneeName,
+                                          isMyPendingTask &&
+                                            styles.assigneeNameMyPending,
+                                        ]}
+                                        numberOfLines={1}
+                                      >
+                                        {isAssignedToMe
+                                          ? "Você"
+                                          : assignee.name}
+                                      </Text>
+                                    </View>
+                                  ) : (
+                                    <View style={styles.unassignedPill}>
+                                      <Ionicons
+                                        name="person-add-outline"
+                                        size={12}
+                                        color={colors.accent}
+                                      />
+                                      <Text style={styles.unassignedText}>
+                                        Atribuir
+                                      </Text>
+                                    </View>
+                                  )}
+                                </Pressable>
+                              ) : (
+                                <View style={styles.selectHintIcon}>
+                                  <Ionicons
+                                    name="chevron-forward"
+                                    size={16}
+                                    color={
+                                      isSelectedForDeletion
+                                        ? colors.danger
+                                        : colors.textMuted
+                                    }
+                                  />
+                                </View>
+                              )}
+                            </Pressable>
                           );
                         })}
 
@@ -534,7 +734,7 @@ export default function TasksScreen() {
                             styles.addInsideFolderBtn,
                             pressed && { opacity: 0.75 },
                           ]}
-                          onPress={() => handleOpenAddModal(folder.id)}
+                          onPress={() => handleOpenCreateModal(folder.id)}
                         >
                           <Ionicons
                             name="add"
@@ -555,15 +755,17 @@ export default function TasksScreen() {
         </ScrollView>
 
         {/* FAB para abrir modal de criação global */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.fab,
-            pressed && { transform: [{ scale: 0.94 }], opacity: 0.9 },
-          ]}
-          onPress={() => handleOpenAddModal("Única")}
-        >
-          <Ionicons name="add" size={30} color={colors.white} />
-        </Pressable>
+        {!isSelectionMode ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.fab,
+              pressed && { transform: [{ scale: 0.94 }], opacity: 0.9 },
+            ]}
+            onPress={() => handleOpenCreateModal("Única")}
+          >
+            <Ionicons name="add" size={30} color={colors.white} />
+          </Pressable>
+        ) : null}
       </View>
 
       {/* Modal: Atribuir ou Reatribuir Responsável */}
@@ -671,13 +873,13 @@ export default function TasksScreen() {
         </Pressable>
       </Modal>
 
-      {/* Modal: Criação Completa e Robusta de Tarefa */}
-      <Modal visible={addModalVisible} transparent animationType="slide">
+      {/* Modal Unificado: Criação e Edição Completa de Tarefa */}
+      <Modal visible={modalVisible} transparent animationType="slide">
         <KeyboardAvoidingView
           style={styles.flex}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <Pressable style={styles.overlay} onPress={handleCloseAddModal}>
+          <Pressable style={styles.overlay} onPress={handleCloseModal}>
             <Pressable
               style={styles.createSheet}
               onPress={(e) => e.stopPropagation()}
@@ -685,13 +887,17 @@ export default function TasksScreen() {
               {/* Header do Modal */}
               <View style={styles.sheetHeader}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.sheetTitle}>Nova Tarefa</Text>
+                  <Text style={styles.sheetTitle}>
+                    {modalMode === "edit" ? "Editar Tarefa" : "Nova Tarefa"}
+                  </Text>
                   <Text style={styles.sheetSub}>
-                    Defina os detalhes e o responsável pela tarefa
+                    {modalMode === "edit"
+                      ? "Atualize os detalhes, responsável ou periodicidade"
+                      : "Defina os detalhes e o responsável pela tarefa"}
                   </Text>
                 </View>
                 <Pressable
-                  onPress={handleCloseAddModal}
+                  onPress={handleCloseModal}
                   style={styles.closeIconBtn}
                   hitSlop={8}
                 >
@@ -718,10 +924,10 @@ export default function TasksScreen() {
                       style={styles.input}
                       placeholder="Ex.: Trocar lâmpada ou Limpar banheiro"
                       placeholderTextColor={colors.textMuted}
-                      value={newTitle}
+                      value={formTitle}
                       onChangeText={(t) => {
-                        setNewTitle(t);
-                        if (addError) setAddError("");
+                        setFormTitle(t);
+                        if (formError) setFormError("");
                       }}
                     />
                   </View>
@@ -744,8 +950,8 @@ export default function TasksScreen() {
                       multiline
                       numberOfLines={3}
                       textAlignVertical="top"
-                      value={newDescription}
-                      onChangeText={setNewDescription}
+                      value={formDescription}
+                      onChangeText={setFormDescription}
                     />
                   </View>
                 </View>
@@ -754,7 +960,7 @@ export default function TasksScreen() {
                 <View style={styles.fieldGroup}>
                   <View style={styles.fieldHeaderRow}>
                     <Text style={styles.fieldLabel}>Recorrência / Pasta</Text>
-                    {newRecurrence === "Única" ? (
+                    {formRecurrence === "Única" ? (
                       <Text style={styles.priorityHint}>
                         ⚡ Ficará no topo (Alta prioridade)
                       </Text>
@@ -762,7 +968,7 @@ export default function TasksScreen() {
                   </View>
                   <View style={styles.recurrenceGrid}>
                     {RECURRENCE_OPTIONS.map((opt) => {
-                      const isSelected = newRecurrence === opt.id;
+                      const isSelected = formRecurrence === opt.id;
                       return (
                         <Pressable
                           key={opt.id}
@@ -773,7 +979,7 @@ export default function TasksScreen() {
                               isSelected &&
                               styles.recurrenceCardPriorityActive,
                           ]}
-                          onPress={() => setNewRecurrence(opt.id)}
+                          onPress={() => setFormRecurrence(opt.id)}
                         >
                           <Ionicons
                             name={opt.icon}
@@ -813,14 +1019,14 @@ export default function TasksScreen() {
                     <Pressable
                       style={[
                         styles.memberChip,
-                        newAssigneeId === null && styles.memberChipActive,
+                        formAssigneeId === null && styles.memberChipActive,
                       ]}
-                      onPress={() => setNewAssigneeId(null)}
+                      onPress={() => setFormAssigneeId(null)}
                     >
                       <View
                         style={[
                           styles.memberChipIconWrap,
-                          newAssigneeId === null &&
+                          formAssigneeId === null &&
                             styles.memberChipIconWrapActive,
                         ]}
                       >
@@ -828,7 +1034,7 @@ export default function TasksScreen() {
                           name="people-outline"
                           size={16}
                           color={
-                            newAssigneeId === null
+                            formAssigneeId === null
                               ? colors.accent
                               : colors.textMuted
                           }
@@ -837,7 +1043,7 @@ export default function TasksScreen() {
                       <Text
                         style={[
                           styles.memberChipText,
-                          newAssigneeId === null &&
+                          formAssigneeId === null &&
                             styles.memberChipTextActive,
                         ]}
                       >
@@ -847,7 +1053,7 @@ export default function TasksScreen() {
 
                     {/* Moradores cadastrados */}
                     {residents.map((r) => {
-                      const isSelected = newAssigneeId === r.id;
+                      const isSelected = formAssigneeId === r.id;
                       const isMe = r.id === currentResidentId;
 
                       return (
@@ -857,7 +1063,7 @@ export default function TasksScreen() {
                             styles.memberChip,
                             isSelected && styles.memberChipActive,
                           ]}
-                          onPress={() => setNewAssigneeId(r.id)}
+                          onPress={() => setFormAssigneeId(r.id)}
                         >
                           <Avatar name={r.name} size={24} />
                           <Text
@@ -876,28 +1082,50 @@ export default function TasksScreen() {
                 </View>
 
                 {/* Erro de validação */}
-                {addError ? (
+                {formError ? (
                   <View style={styles.errorContainer}>
                     <Ionicons
                       name="alert-circle-outline"
                       size={18}
                       color={colors.danger}
                     />
-                    <Text style={styles.errorText}>{addError}</Text>
+                    <Text style={styles.errorText}>{formError}</Text>
                   </View>
                 ) : null}
 
                 {/* Botões de Ação */}
                 <View style={styles.modalActions}>
                   <PrimaryButton
-                    title="Criar tarefa"
-                    onPress={handleCreateTask}
+                    title={
+                      modalMode === "edit"
+                        ? "Salvar alterações"
+                        : "Criar tarefa"
+                    }
+                    onPress={handleSaveTask}
                     style={styles.submitBtn}
                   />
+
+                  {/* Opção de Exclusão direta no Modal de Edição */}
+                  {modalMode === "edit" ? (
+                    <Pressable
+                      style={styles.deleteInModalBtn}
+                      onPress={handleDeleteSingleTaskFromModal}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={17}
+                        color={colors.danger}
+                      />
+                      <Text style={styles.deleteInModalText}>
+                        Excluir esta tarefa
+                      </Text>
+                    </Pressable>
+                  ) : null}
+
                   <PrimaryButton
                     title="Cancelar"
                     variant="outline"
-                    onPress={handleCloseAddModal}
+                    onPress={handleCloseModal}
                   />
                 </View>
               </ScrollView>
@@ -925,11 +1153,72 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100,
   },
+  // Barra Flutuante de Seleção / Exclusão Múltipla
+  selectionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#1F2924",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#33443B",
+  },
+  selectionInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  selectionBadge: {
+    backgroundColor: colors.danger,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectionBadgeText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  selectionText: {
+    color: colors.white,
+    fontSize: 13.5,
+    fontWeight: "700",
+  },
+  selectionActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  deleteSelectedBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.danger,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 5,
+  },
+  deleteSelectedText: {
+    color: colors.white,
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
+  cancelSelectionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   overviewCard: {
     backgroundColor: colors.white,
     padding: 16,
     borderRadius: 18,
-    marginBottom: 16,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: "#E2EAE5",
     shadowColor: "#000",
@@ -980,6 +1269,18 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: 6,
     textAlign: "right",
+  },
+  foldersNoticeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+    marginHorizontal: 4,
+    gap: 6,
+  },
+  foldersNoticeText: {
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: "600",
   },
   folderCard: {
     backgroundColor: colors.white,
@@ -1137,7 +1438,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: 14,
     padding: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#E6ECE9",
     shadowColor: "#000",
     shadowOpacity: 0.02,
@@ -1156,10 +1457,43 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
+  // HIGHLIGHT LEVE VERMELHO PARA TAREFA SELECIONADA PARA REMOÇÃO (Long Press)
+  taskItemSelectedForDeletion: {
+    backgroundColor: "#FFF5F5",
+    borderWidth: 2,
+    borderColor: colors.danger,
+    shadowColor: colors.danger,
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
   taskItemDone: {
     backgroundColor: "#F4F7F5",
     borderColor: "#E0E8E3",
     opacity: 0.82,
+  },
+  selectionCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#D5DFD9",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+    alignSelf: "flex-start",
+    marginTop: 2,
+  },
+  selectionCircleActive: {
+    backgroundColor: colors.danger,
+    borderColor: colors.danger,
+  },
+  selectionCircleEmpty: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "transparent",
   },
   checkWrap: {
     marginRight: 10,
@@ -1211,6 +1545,10 @@ const styles = StyleSheet.create({
   },
   taskTitleMyPending: {
     color: colors.primaryDark,
+    fontWeight: "800",
+  },
+  taskTitleSelected: {
+    color: colors.danger,
     fontWeight: "800",
   },
   taskTitleDone: {
@@ -1269,6 +1607,9 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontWeight: "700",
     fontSize: 11.5,
+  },
+  selectHintIcon: {
+    padding: 4,
   },
   addInsideFolderBtn: {
     flexDirection: "row",
@@ -1503,6 +1844,23 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginBottom: 2,
+  },
+  deleteInModalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFF2F2",
+    borderWidth: 1.5,
+    borderColor: "#F8D7D7",
+    borderRadius: 12,
+    paddingVertical: 12,
+    gap: 6,
+    marginBottom: 2,
+  },
+  deleteInModalText: {
+    color: colors.danger,
+    fontSize: 14,
+    fontWeight: "700",
   },
   residentRow: {
     flexDirection: "row",
