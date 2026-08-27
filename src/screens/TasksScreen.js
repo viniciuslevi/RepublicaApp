@@ -7,8 +7,9 @@ import {
   StyleSheet,
   Modal,
   TextInput,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import ScreenHeader from "../components/ScreenHeader";

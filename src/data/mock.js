@@ -1,3 +1,15 @@
+export const initialResidences = [
+  {
+    id: "rep-1",
+    name: "República da Ana, Bruno e Carla",
+    code: "REP-4F2A",
+    membersCount: 3,
+    address: "Rua Universitária, 120",
+    description: "Moradia compartilhada padrão do app",
+    members: ["Ana", "Bruno", "Carla"],
+  },
+];
+
 export const initialResidents = [
   { id: "1", name: "Ana", email: "ana@republica.com" },
   { id: "2", name: "Bruno", email: "bruno@republica.com" },
@@ -16,4 +28,5 @@ export const initialExpenses = [
   { id: "e2", description: "Mercado da semana", value: 180.0, payerId: "2" },
   { id: "e3", description: "Internet", value: 120.0, payerId: "3" },
 ];
+
 

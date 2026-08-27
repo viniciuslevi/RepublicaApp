@@ -7,21 +7,19 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   Image,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import PrimaryButton from "../components/PrimaryButton";
 import Avatar from "../components/Avatar";
 import { colors } from "../theme/colors";
 import { useAuth } from "../context/AuthContext";
-import { useAppData } from "../context/AppDataContext";
 import { initialResidents } from "../data/mock";
 
 export default function LoginScreen({ navigation }) {
   const { login, isLoading } = useAuth();
-  const { setGroupName } = useAppData();
 
   const [email, setEmail] = useState("ana@republica.com");
   const [password, setPassword] = useState("123");
@@ -37,18 +35,8 @@ export default function LoginScreen({ navigation }) {
       return;
     }
 
-    // Se for morador mockado, define a república padrão e vai direto para a tela inicial
-    const isDefaultResident = initialResidents.some(
-      (r) => r.email.toLowerCase() === email.trim().toLowerCase()
-    );
-
-    if (isDefaultResident) {
-      setGroupName("República da Ana, Bruno e Carla");
-      navigation.replace("Main");
-    } else {
-      // Novo usuário: direciona para o onboarding de criar ou entrar em residência
-      navigation.replace("Welcome");
-    }
+    // Após o login, direciona para a tela de seleção/gestão de moradia compartilhada
+    navigation.replace("SelectResidence");
   }
 
   function handleQuickFill(resident) {
@@ -68,13 +56,13 @@ export default function LoginScreen({ navigation }) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Top Hero with Logo */}
+          {/* Top Hero with Green Gradient Logo */}
           <View style={styles.hero}>
             <View style={styles.logoContainer}>
               <Image
-                source={require("../../assets/android-icon-foreground.png")}
+                source={require("../../assets/logo-login.png")}
                 style={styles.logoImage}
-                resizeMode="contain"
+                resizeMode="cover"
               />
             </View>
             <Text style={styles.brand}>RepublicApp</Text>
@@ -82,6 +70,7 @@ export default function LoginScreen({ navigation }) {
               Gestão inteligente e simples para sua moradia compartilhada.
             </Text>
           </View>
+
 
           {/* Form Card */}
           <View style={styles.card}>
@@ -204,14 +193,15 @@ export default function LoginScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Footer / Guest Entry */}
+            {/* Footer / Alternative Entry */}
             <View style={styles.footer}>
               <Pressable
-                onPress={() => navigation.navigate("Welcome")}
+                onPress={() => navigation.navigate("SelectResidence")}
                 style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
               >
                 <Text style={styles.footerLink}>
-                  Ainda não tem residência? <Text style={styles.footerLinkBold}>Criar ou entrar com código</Text>
+                  Deseja entrar em outra moradia?{" "}
+                  <Text style={styles.footerLinkBold}>Ver opções de residência</Text>
                 </Text>
               </Pressable>
             </View>
@@ -236,23 +226,29 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: "center",
     paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 24,
+    paddingTop: 20,
+    paddingBottom: 20,
   },
   logoContainer: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
-    borderWidth: 1.5,
-    borderColor: "rgba(223, 241, 230, 0.25)",
+    marginBottom: 14,
+    borderWidth: 2,
+    borderColor: "rgba(63, 155, 110, 0.4)",
+    overflow: "hidden",
+    shadowColor: colors.accent,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   logoImage: {
-    width: 72,
-    height: 72,
+    width: "100%",
+    height: "100%",
   },
   brand: {
     color: colors.white,

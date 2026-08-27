@@ -6,10 +6,11 @@ import {
   FlatList,
   Pressable,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import ScreenHeader from "../components/ScreenHeader";
 import Avatar from "../components/Avatar";
 import PrimaryButton from "../components/PrimaryButton";

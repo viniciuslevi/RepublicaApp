@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 
 import LoginScreen from "../screens/LoginScreen";
+import SelectResidenceScreen from "../screens/SelectResidenceScreen";
 import WelcomeScreen from "../screens/WelcomeScreen";
 import TasksScreen from "../screens/TasksScreen";
 import ExpensesScreen from "../screens/ExpensesScreen";
@@ -49,10 +50,12 @@ export default function RootNavigator() {
         initialRouteName="Login"
       >
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="SelectResidence" component={SelectResidenceScreen} />
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+
 
