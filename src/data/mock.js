@@ -17,10 +17,10 @@ export const initialResidents = [
 ];
 
 export const initialTasks = [
-  { id: "t1", title: "Lavar a louça", assigneeId: "1", recurrence: "Diária", done: false },
-  { id: "t2", title: "Tirar o lixo", assigneeId: "2", recurrence: "Semanal", done: true },
-  { id: "t3", title: "Limpar o banheiro", assigneeId: null, recurrence: "Semanal", done: false },
-  { id: "t4", title: "Comprar produtos de limpeza", assigneeId: "3", recurrence: "Mensal", done: false },
+  { id: "t1", title: "Lavar a louça", description: "Lavar e secar a louça acumulada da pia da cozinha", assigneeId: "1", recurrence: "Diária", done: false },
+  { id: "t2", title: "Tirar o lixo", description: "Colocar os sacos de lixo orgânico e reciclável na calçada", assigneeId: "2", recurrence: "Semanal", done: true },
+  { id: "t3", title: "Limpar o banheiro", description: "Higienizar vaso sanitário, box e repor toalhas", assigneeId: null, recurrence: "Semanal", done: false },
+  { id: "t4", title: "Comprar produtos de limpeza", description: "Comprar detergente, esponjas e desinfetante no mercado", assigneeId: "3", recurrence: "Mensal", done: false },
 ];
 
 export const initialExpenses = [

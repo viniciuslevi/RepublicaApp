@@ -90,12 +90,36 @@ export function AppDataProvider({ children }) {
     );
   }
 
-  function addTask(title, recurrence) {
+  function addTask(titleOrData, recurrence = "Semanal", assigneeId = null, description = "") {
     const id = `t${Date.now()}`;
+    if (typeof titleOrData === "object" && titleOrData !== null) {
+      const taskData = titleOrData;
+      setTasks((prev) => [
+        {
+          id,
+          title: (taskData.title || "").trim(),
+          description: (taskData.description || "").trim(),
+          assigneeId: taskData.assigneeId || null,
+          recurrence: taskData.recurrence || "Semanal",
+          done: false,
+        },
+        ...prev,
+      ]);
+      return id;
+    }
+
     setTasks((prev) => [
-      { id, title, assigneeId: null, recurrence: recurrence || "Sem recorrência", done: false },
+      {
+        id,
+        title: (titleOrData || "").trim(),
+        description: (description || "").trim(),
+        assigneeId: assigneeId || null,
+        recurrence: recurrence || "Semanal",
+        done: false,
+      },
       ...prev,
     ]);
+    return id;
   }
 
   function addExpense(description, value, payerId) {
