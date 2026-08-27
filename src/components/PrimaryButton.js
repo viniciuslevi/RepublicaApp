@@ -1,20 +1,38 @@
 import React from "react";
-import { Pressable, Text, StyleSheet } from "react-native";
+import { Pressable, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { colors } from "../theme/colors";
 
-export default function PrimaryButton({ title, onPress, variant = "solid", style }) {
+export default function PrimaryButton({
+  title,
+  onPress,
+  variant = "solid",
+  style,
+  loading = false,
+  disabled = false,
+}) {
   const isOutline = variant === "outline";
+  const isDisabled = disabled || loading;
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={isDisabled ? undefined : onPress}
+      disabled={isDisabled}
       style={({ pressed }) => [
         styles.base,
         isOutline ? styles.outline : styles.solid,
-        pressed && { opacity: 0.85 },
+        isDisabled && styles.disabled,
+        pressed && !isDisabled && { opacity: 0.85 },
         style,
       ]}
     >
-      <Text style={[styles.text, isOutline && styles.textOutline]}>{title}</Text>
+      {loading ? (
+        <ActivityIndicator
+          size="small"
+          color={isOutline ? colors.accent : colors.white}
+        />
+      ) : (
+        <Text style={[styles.text, isOutline && styles.textOutline]}>{title}</Text>
+      )}
     </Pressable>
   );
 }
@@ -25,6 +43,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 50,
   },
   solid: {
     backgroundColor: colors.accent,
@@ -33,6 +52,9 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderWidth: 1.5,
     borderColor: colors.accent,
+  },
+  disabled: {
+    opacity: 0.6,
   },
   text: {
     color: colors.white,
@@ -43,3 +65,4 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
 });
+

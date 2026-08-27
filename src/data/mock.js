@@ -1,7 +1,7 @@
 export const initialResidents = [
-  { id: "1", name: "Ana" },
-  { id: "2", name: "Bruno" },
-  { id: "3", name: "Carla" },
+  { id: "1", name: "Ana", email: "ana@republica.com" },
+  { id: "2", name: "Bruno", email: "bruno@republica.com" },
+  { id: "3", name: "Carla", email: "carla@republica.com" },
 ];
 
 export const initialTasks = [
@@ -16,3 +16,4 @@ export const initialExpenses = [
   { id: "e2", description: "Mercado da semana", value: 180.0, payerId: "2" },
   { id: "e3", description: "Internet", value: 120.0, payerId: "3" },
 ];
+
