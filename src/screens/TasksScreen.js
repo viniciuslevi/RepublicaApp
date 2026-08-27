@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
-  FlatList,
   Pressable,
   StyleSheet,
   Modal,
@@ -20,10 +19,58 @@ import PrimaryButton from "../components/PrimaryButton";
 import { colors } from "../theme/colors";
 import { useAppData } from "../context/AppDataContext";
 
+/**
+ * Definição das pastas de recorrência em ordem de prioridade.
+ * As tarefas pontuais (sem recorrência) ficam no topo por terem prioridade imediata.
+ */
+const FOLDERS = [
+  {
+    id: "Única",
+    label: "Tarefas Pontuais",
+    tag: "Alta Prioridade",
+    description: "Demandas únicas e urgentes da moradia",
+    icon: "pin",
+    accentColor: colors.gold,
+    bgColor: colors.goldLight,
+    isPriority: true,
+  },
+  {
+    id: "Diária",
+    label: "Tarefas Diárias",
+    tag: "Rotina",
+    description: "Atividades essenciais do dia a dia",
+    icon: "repeat",
+    accentColor: colors.accent,
+    bgColor: colors.accentLight,
+    isPriority: false,
+  },
+  {
+    id: "Semanal",
+    label: "Tarefas Semanais",
+    tag: "Escala",
+    description: "Limpezas e manutenções da semana",
+    icon: "calendar",
+    accentColor: colors.primary,
+    bgColor: colors.surface,
+    isPriority: false,
+  },
+  {
+    id: "Mensal",
+    label: "Tarefas Mensais",
+    tag: "Controle",
+    description: "Compras e vistorias do mês",
+    icon: "calendar-number",
+    accentColor: "#3B6E8C",
+    bgColor: "#E2EEF5",
+    isPriority: false,
+  },
+];
+
 const RECURRENCE_OPTIONS = [
-  { id: "Diária", label: "Diária", icon: "repeat-outline" },
-  { id: "Semanal", label: "Semanal", icon: "calendar-outline" },
-  { id: "Mensal", label: "Mensal", icon: "calendar-number-outline" },
+  { id: "Única", label: "Única", sub: "Sem recorrência", icon: "pin-outline" },
+  { id: "Diária", label: "Diária", sub: "Todo dia", icon: "repeat-outline" },
+  { id: "Semanal", label: "Semanal", sub: "Toda semana", icon: "calendar-outline" },
+  { id: "Mensal", label: "Mensal", sub: "Todo mês", icon: "calendar-number-outline" },
 ];
 
 export default function TasksScreen() {
@@ -33,10 +80,18 @@ export default function TasksScreen() {
   const [assignModalTask, setAssignModalTask] = useState(null);
   const [addModalVisible, setAddModalVisible] = useState(false);
 
+  // Controle de pastas abertas/fechadas (Tarefas Pontuais e Diárias iniciam abertas)
+  const [openFolders, setOpenFolders] = useState({
+    Única: true,
+    Diária: true,
+    Semanal: false,
+    Mensal: false,
+  });
+
   // Estados do formulário de criação de tarefas
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newRecurrence, setNewRecurrence] = useState("Semanal");
+  const [newRecurrence, setNewRecurrence] = useState("Única");
   const [newAssigneeId, setNewAssigneeId] = useState(null);
   const [addError, setAddError] = useState("");
 
@@ -50,10 +105,17 @@ export default function TasksScreen() {
     }
   }, [isFocused]);
 
-  function handleOpenAddModal() {
+  function toggleFolder(folderId) {
+    setOpenFolders((prev) => ({
+      ...prev,
+      [folderId]: !prev[folderId],
+    }));
+  }
+
+  function handleOpenAddModal(defaultRecurrence = "Única") {
     setNewTitle("");
     setNewDescription("");
-    setNewRecurrence("Semanal");
+    setNewRecurrence(defaultRecurrence || "Única");
     setNewAssigneeId(null);
     setAddError("");
     setAddModalVisible(true);
@@ -62,7 +124,7 @@ export default function TasksScreen() {
   function handleCloseAddModal() {
     setNewTitle("");
     setNewDescription("");
-    setNewRecurrence("Semanal");
+    setNewRecurrence("Única");
     setNewAssigneeId(null);
     setAddError("");
     setAddModalVisible(false);
@@ -84,114 +146,298 @@ export default function TasksScreen() {
     handleCloseAddModal();
   }
 
-  function getRecurrenceIcon(recurrence) {
-    switch (recurrence) {
-      case "Diária":
-        return "repeat-outline";
-      case "Mensal":
-        return "calendar-number-outline";
-      case "Semanal":
-      default:
-        return "calendar-outline";
-    }
-  }
+  // Agrupamento de tarefas por pasta de recorrência (preparado para backend flat list)
+  const tasksByFolder = useMemo(() => {
+    const map = {
+      Única: [],
+      Diária: [],
+      Semanal: [],
+      Mensal: [],
+    };
 
-  function renderTask({ item }) {
-    const assignee = item.assigneeId ? residentById[item.assigneeId] : null;
-    const recurrenceIcon = getRecurrenceIcon(item.recurrence);
+    tasks.forEach((task) => {
+      const rec =
+        task.recurrence === "Sem recorrência" || !task.recurrence
+          ? "Única"
+          : task.recurrence;
 
-    return (
-      <View style={[styles.taskCard, item.done && styles.taskCardDone]}>
-        {/* Checkbox de conclusão */}
-        <Pressable
-          onPress={() => toggleTaskDone(item.id)}
-          style={styles.checkWrap}
-          hitSlop={8}
-        >
-          <View style={[styles.checkbox, item.done && styles.checkboxDone]}>
-            {item.done ? <Ionicons name="checkmark" size={16} color={colors.white} /> : null}
-          </View>
-        </Pressable>
+      if (map[rec]) {
+        map[rec].push(task);
+      } else {
+        map.Única.push(task);
+      }
+    });
 
-        {/* Informações da Tarefa */}
-        <View style={styles.taskBody}>
-          <Text style={[styles.taskTitle, item.done && styles.taskTitleDone]}>
-            {item.title}
-          </Text>
+    return map;
+  }, [tasks]);
 
-          {item.description ? (
-            <Text
-              style={[styles.taskDesc, item.done && styles.taskDescDone]}
-              numberOfLines={2}
-            >
-              {item.description}
-            </Text>
-          ) : null}
-
-          {/* Linha de Metadados: Recorrência */}
-          <View style={styles.taskMetaRow}>
-            <View style={styles.recurrenceBadge}>
-              <Ionicons name={recurrenceIcon} size={12} color={colors.accent} />
-              <Text style={styles.recurrenceBadgeText}>{item.recurrence}</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Botão / Indicador de Atribuição de Responsável */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.assignBtn,
-            pressed && { opacity: 0.75 },
-          ]}
-          onPress={() => setAssignModalTask(item)}
-          hitSlop={6}
-        >
-          {assignee ? (
-            <View style={styles.assigneePill}>
-              <Avatar name={assignee.name} size={24} />
-              <Text style={styles.assigneeName} numberOfLines={1}>
-                {assignee.name}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.unassignedPill}>
-              <Ionicons name="person-add-outline" size={13} color={colors.accent} />
-              <Text style={styles.unassignedText}>Atribuir</Text>
-            </View>
-          )}
-        </Pressable>
-      </View>
-    );
-  }
+  // Estatísticas gerais
+  const stats = useMemo(() => {
+    const total = tasks.length;
+    const completed = tasks.filter((t) => t.done).length;
+    const pending = total - completed;
+    return { total, completed, pending };
+  }, [tasks]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ScreenHeader kicker="TAREFAS" title="Tarefas da casa" />
 
       <View style={styles.body}>
-        <FlatList
-          data={tasks}
-          keyExtractor={(t) => t.id}
-          renderItem={renderTask}
-          contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="checkbox-outline" size={48} color="#C4D4CC" />
-              <Text style={styles.emptyTitle}>Nenhuma tarefa cadastrada</Text>
-              <Text style={styles.emptySub}>
-                Toque no botão abaixo para adicionar a primeira tarefa da moradia.
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Card Resumo de Progresso das Tarefas */}
+          <View style={styles.overviewCard}>
+            <View style={styles.overviewInfo}>
+              <Text style={styles.overviewTitle}>Painel de Tarefas</Text>
+              <Text style={styles.overviewSub}>
+                {stats.pending > 0
+                  ? `${stats.pending} tarefa(s) pendente(s) · ${stats.completed} concluída(s)`
+                  : "Todas as tarefas da casa estão em dia! 🎉"}
               </Text>
             </View>
-          }
-        />
+            <View style={styles.overviewBadge}>
+              <Ionicons name="checkbox" size={16} color={colors.accent} />
+              <Text style={styles.overviewBadgeText}>
+                {stats.total > 0
+                  ? `${Math.round((stats.completed / stats.total) * 100)}%`
+                  : "0%"}
+              </Text>
+            </View>
+          </View>
 
-        {/* FAB para abrir modal de criação */}
+          {/* Renderização das Pastas em Ordem de Prioridade */}
+          {FOLDERS.map((folder) => {
+            const folderTasks = tasksByFolder[folder.id] || [];
+            const folderTotal = folderTasks.length;
+            const folderCompleted = folderTasks.filter((t) => t.done).length;
+            const isOpen = !!openFolders[folder.id];
+
+            return (
+              <View
+                key={folder.id}
+                style={[
+                  styles.folderCard,
+                  folder.isPriority && styles.folderCardPriority,
+                ]}
+              >
+                {/* Cabeçalho da Pasta (Clicável para expandir/recolher) */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.folderHeader,
+                    isOpen && styles.folderHeaderOpen,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                  onPress={() => toggleFolder(folder.id)}
+                >
+                  <View
+                    style={[
+                      styles.folderIconWrap,
+                      { backgroundColor: folder.bgColor },
+                    ]}
+                  >
+                    <Ionicons
+                      name={isOpen ? "folder-open" : folder.icon}
+                      size={20}
+                      color={folder.accentColor}
+                    />
+                  </View>
+
+                  <View style={styles.folderHeaderTextWrap}>
+                    <View style={styles.folderTitleRow}>
+                      <Text style={styles.folderTitle}>{folder.label}</Text>
+                      {folder.tag ? (
+                        <View
+                          style={[
+                            styles.folderTag,
+                            folder.isPriority && styles.folderTagPriority,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.folderTagText,
+                              folder.isPriority && styles.folderTagTextPriority,
+                            ]}
+                          >
+                            {folder.tag}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.folderSub} numberOfLines={1}>
+                      {folderTotal === 0
+                        ? "Nenhuma tarefa nesta pasta"
+                        : `${folderTotal} tarefa(s) · ${folderCompleted} feita(s)`}
+                    </Text>
+                  </View>
+
+                  <View style={styles.folderChevronWrap}>
+                    <Ionicons
+                      name={isOpen ? "chevron-up" : "chevron-down"}
+                      size={20}
+                      color={colors.textMuted}
+                    />
+                  </View>
+                </Pressable>
+
+                {/* Conteúdo da Pasta (Lista de Tarefas) */}
+                {isOpen ? (
+                  <View style={styles.folderBody}>
+                    {folderTasks.length === 0 ? (
+                      <View style={styles.emptyFolderBox}>
+                        <Ionicons
+                          name="folder-open-outline"
+                          size={32}
+                          color="#BDD0C6"
+                        />
+                        <Text style={styles.emptyFolderText}>
+                          Nenhuma tarefa nesta pasta ainda.
+                        </Text>
+                        <Pressable
+                          style={styles.emptyFolderBtn}
+                          onPress={() => handleOpenAddModal(folder.id)}
+                        >
+                          <Ionicons
+                            name="add-circle"
+                            size={16}
+                            color={colors.accent}
+                          />
+                          <Text style={styles.emptyFolderBtnText}>
+                            Adicionar {folder.label.toLowerCase()}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    ) : (
+                      <View style={styles.tasksListWrap}>
+                        {folderTasks.map((item) => {
+                          const assignee = item.assigneeId
+                            ? residentById[item.assigneeId]
+                            : null;
+
+                          return (
+                            <View
+                              key={item.id}
+                              style={[
+                                styles.taskItem,
+                                item.done && styles.taskItemDone,
+                              ]}
+                            >
+                              {/* Checkbox de Conclusão */}
+                              <Pressable
+                                onPress={() => toggleTaskDone(item.id)}
+                                style={styles.checkWrap}
+                                hitSlop={8}
+                              >
+                                <View
+                                  style={[
+                                    styles.checkbox,
+                                    item.done && styles.checkboxDone,
+                                  ]}
+                                >
+                                  {item.done ? (
+                                    <Ionicons
+                                      name="checkmark"
+                                      size={15}
+                                      color={colors.white}
+                                    />
+                                  ) : null}
+                                </View>
+                              </Pressable>
+
+                              {/* Conteúdo textual da Tarefa */}
+                              <View style={styles.taskTextWrap}>
+                                <Text
+                                  style={[
+                                    styles.taskTitle,
+                                    item.done && styles.taskTitleDone,
+                                  ]}
+                                >
+                                  {item.title}
+                                </Text>
+                                {item.description ? (
+                                  <Text
+                                    style={[
+                                      styles.taskDesc,
+                                      item.done && styles.taskDescDone,
+                                    ]}
+                                    numberOfLines={2}
+                                  >
+                                    {item.description}
+                                  </Text>
+                                ) : null}
+                              </View>
+
+                              {/* Atribuição de Responsável */}
+                              <Pressable
+                                style={({ pressed }) => [
+                                  styles.assignBtn,
+                                  pressed && { opacity: 0.75 },
+                                ]}
+                                onPress={() => setAssignModalTask(item)}
+                                hitSlop={6}
+                              >
+                                {assignee ? (
+                                  <View style={styles.assigneePill}>
+                                    <Avatar name={assignee.name} size={22} />
+                                    <Text
+                                      style={styles.assigneeName}
+                                      numberOfLines={1}
+                                    >
+                                      {assignee.name}
+                                    </Text>
+                                  </View>
+                                ) : (
+                                  <View style={styles.unassignedPill}>
+                                    <Ionicons
+                                      name="person-add-outline"
+                                      size={12}
+                                      color={colors.accent}
+                                    />
+                                    <Text style={styles.unassignedText}>
+                                      Atribuir
+                                    </Text>
+                                  </View>
+                                )}
+                              </Pressable>
+                            </View>
+                          );
+                        })}
+
+                        {/* Botão para adicionar tarefa diretamente dentro da pasta */}
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.addInsideFolderBtn,
+                            pressed && { opacity: 0.75 },
+                          ]}
+                          onPress={() => handleOpenAddModal(folder.id)}
+                        >
+                          <Ionicons
+                            name="add"
+                            size={16}
+                            color={colors.accent}
+                          />
+                          <Text style={styles.addInsideFolderText}>
+                            Adicionar em {folder.label}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )}
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        {/* FAB para abrir modal de criação global */}
         <Pressable
           style={({ pressed }) => [
             styles.fab,
             pressed && { transform: [{ scale: 0.94 }], opacity: 0.9 },
           ]}
-          onPress={handleOpenAddModal}
+          onPress={() => handleOpenAddModal("Única")}
         >
           <Ionicons name="add" size={30} color={colors.white} />
         </Pressable>
@@ -199,13 +445,22 @@ export default function TasksScreen() {
 
       {/* Modal: Atribuir ou Reatribuir Responsável */}
       <Modal visible={!!assignModalTask} transparent animationType="fade">
-        <Pressable style={styles.overlay} onPress={() => setAssignModalTask(null)}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable
+          style={styles.overlay}
+          onPress={() => setAssignModalTask(null)}
+        >
+          <Pressable
+            style={styles.sheet}
+            onPress={(e) => e.stopPropagation()}
+          >
             <View style={styles.sheetHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.sheetTitle}>Atribuir Responsável</Text>
                 <Text style={styles.sheetSub}>
-                  Tarefa: <Text style={styles.sheetSubBold}>{assignModalTask?.title}</Text>
+                  Tarefa:{" "}
+                  <Text style={styles.sheetSubBold}>
+                    {assignModalTask?.title}
+                  </Text>
                 </Text>
               </View>
               <Pressable
@@ -221,7 +476,8 @@ export default function TasksScreen() {
             <Pressable
               style={[
                 styles.residentRow,
-                assignModalTask?.assigneeId === null && styles.residentRowActive,
+                assignModalTask?.assigneeId === null &&
+                  styles.residentRowActive,
               ]}
               onPress={() => {
                 assignTask(assignModalTask.id, null);
@@ -229,11 +485,19 @@ export default function TasksScreen() {
               }}
             >
               <View style={styles.unassignAvatar}>
-                <Ionicons name="person-remove-outline" size={16} color={colors.textMuted} />
+                <Ionicons
+                  name="person-remove-outline"
+                  size={16}
+                  color={colors.textMuted}
+                />
               </View>
               <Text style={styles.residentName}>Deixar sem responsável</Text>
               {assignModalTask?.assigneeId === null ? (
-                <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={colors.accent}
+                />
               ) : null}
             </Pressable>
 
@@ -253,11 +517,20 @@ export default function TasksScreen() {
                   }}
                 >
                   <Avatar name={r.name} size={32} />
-                  <Text style={[styles.residentName, isCurrentAssignee && styles.residentNameActive]}>
+                  <Text
+                    style={[
+                      styles.residentName,
+                      isCurrentAssignee && styles.residentNameActive,
+                    ]}
+                  >
                     {r.name}
                   </Text>
                   {isCurrentAssignee ? (
-                    <Ionicons name="checkmark-circle" size={20} color={colors.accent} />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={colors.accent}
+                    />
                   ) : null}
                 </Pressable>
               );
@@ -280,7 +553,10 @@ export default function TasksScreen() {
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <Pressable style={styles.overlay} onPress={handleCloseAddModal}>
-            <Pressable style={styles.createSheet} onPress={(e) => e.stopPropagation()}>
+            <Pressable
+              style={styles.createSheet}
+              onPress={(e) => e.stopPropagation()}
+            >
               {/* Header do Modal */}
               <View style={styles.sheetHeader}>
                 <View style={{ flex: 1 }}>
@@ -315,7 +591,7 @@ export default function TasksScreen() {
                     />
                     <TextInput
                       style={styles.input}
-                      placeholder="Ex.: Limpar o banheiro ou Lavar louça"
+                      placeholder="Ex.: Trocar lâmpada ou Limpar banheiro"
                       placeholderTextColor={colors.textMuted}
                       value={newTitle}
                       onChangeText={(t) => {
@@ -338,7 +614,7 @@ export default function TasksScreen() {
                     />
                     <TextInput
                       style={[styles.input, styles.inputMultiline]}
-                      placeholder="Ex.: Lavar o box, trocar o lixo e repor sabonete..."
+                      placeholder="Ex.: Comprar lâmpada LED no depósito e trocar..."
                       placeholderTextColor={colors.textMuted}
                       multiline
                       numberOfLines={3}
@@ -351,32 +627,53 @@ export default function TasksScreen() {
 
                 {/* Campo: Recorrência */}
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>Recorrência</Text>
-                  <View style={styles.recurrenceRow}>
+                  <View style={styles.fieldHeaderRow}>
+                    <Text style={styles.fieldLabel}>Recorrência / Pasta</Text>
+                    {newRecurrence === "Única" ? (
+                      <Text style={styles.priorityHint}>
+                        ⚡ Ficará no topo (Alta prioridade)
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.recurrenceGrid}>
                     {RECURRENCE_OPTIONS.map((opt) => {
                       const isSelected = newRecurrence === opt.id;
                       return (
                         <Pressable
                           key={opt.id}
                           style={[
-                            styles.recurrenceChip,
-                            isSelected && styles.recurrenceChipActive,
+                            styles.recurrenceCard,
+                            isSelected && styles.recurrenceCardActive,
+                            opt.id === "Única" &&
+                              isSelected &&
+                              styles.recurrenceCardPriorityActive,
                           ]}
                           onPress={() => setNewRecurrence(opt.id)}
                         >
                           <Ionicons
                             name={opt.icon}
-                            size={16}
-                            color={isSelected ? colors.primary : colors.textMuted}
+                            size={18}
+                            color={
+                              isSelected
+                                ? opt.id === "Única"
+                                  ? colors.gold
+                                  : colors.primary
+                                : colors.textMuted
+                            }
                           />
-                          <Text
-                            style={[
-                              styles.recurrenceChipText,
-                              isSelected && styles.recurrenceChipTextActive,
-                            ]}
-                          >
-                            {opt.label}
-                          </Text>
+                          <View style={{ marginLeft: 6 }}>
+                            <Text
+                              style={[
+                                styles.recurrenceCardLabel,
+                                isSelected && styles.recurrenceCardLabelActive,
+                              ]}
+                            >
+                              {opt.label}
+                            </Text>
+                            <Text style={styles.recurrenceCardSub}>
+                              {opt.sub}
+                            </Text>
+                          </View>
                         </Pressable>
                       );
                     })}
@@ -398,19 +695,25 @@ export default function TasksScreen() {
                       <View
                         style={[
                           styles.memberChipIconWrap,
-                          newAssigneeId === null && styles.memberChipIconWrapActive,
+                          newAssigneeId === null &&
+                            styles.memberChipIconWrapActive,
                         ]}
                       >
                         <Ionicons
                           name="people-outline"
                           size={16}
-                          color={newAssigneeId === null ? colors.accent : colors.textMuted}
+                          color={
+                            newAssigneeId === null
+                              ? colors.accent
+                              : colors.textMuted
+                          }
                         />
                       </View>
                       <Text
                         style={[
                           styles.memberChipText,
-                          newAssigneeId === null && styles.memberChipTextActive,
+                          newAssigneeId === null &&
+                            styles.memberChipTextActive,
                         ]}
                       >
                         Em aberto
@@ -448,7 +751,11 @@ export default function TasksScreen() {
                 {/* Erro de validação */}
                 {addError ? (
                   <View style={styles.errorContainer}>
-                    <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
+                    <Ionicons
+                      name="alert-circle-outline"
+                      size={18}
+                      color={colors.danger}
+                    />
                     <Text style={styles.errorText}>{addError}</Text>
                   </View>
                 ) : null}
@@ -487,58 +794,192 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  list: {
+  scrollContent: {
     padding: 16,
     paddingBottom: 100,
   },
-  emptyContainer: {
+  overviewCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.white,
+    padding: 14,
+    borderRadius: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E5ECE8",
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  overviewInfo: {
+    flex: 1,
+  },
+  overviewTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  overviewSub: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  overviewBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.accentLight,
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderRadius: 12,
+    gap: 4,
+  },
+  overviewBadgeText: {
+    fontSize: 12.5,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  folderCard: {
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: "#E3ECE7",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+    overflow: "hidden",
+  },
+  folderCardPriority: {
+    borderColor: "rgba(184, 134, 11, 0.4)",
+  },
+  folderHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    backgroundColor: colors.white,
+  },
+  folderHeaderOpen: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF3F0",
+    backgroundColor: "#FCFDFC",
+  },
+  folderIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 60,
-    paddingHorizontal: 24,
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+  folderHeaderTextWrap: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  folderTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  folderTitle: {
+    fontSize: 15.5,
+    fontWeight: "800",
     color: colors.primary,
-    marginTop: 14,
   },
-  emptySub: {
+  folderTag: {
+    backgroundColor: colors.surface,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+  },
+  folderTagPriority: {
+    backgroundColor: colors.goldLight,
+  },
+  folderTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.textMuted,
+    textTransform: "uppercase",
+  },
+  folderTagTextPriority: {
+    color: colors.gold,
+  },
+  folderSub: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  folderChevronWrap: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  folderBody: {
+    padding: 12,
+    backgroundColor: "#F9FAF9",
+  },
+  tasksListWrap: {
+    gap: 8,
+  },
+  emptyFolderBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  emptyFolderText: {
     fontSize: 13,
     color: colors.textMuted,
+    marginTop: 8,
     textAlign: "center",
-    marginTop: 4,
-    lineHeight: 18,
   },
-  taskCard: {
+  emptyFolderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: "#D2E0D8",
+    gap: 5,
+  },
+  emptyFolderBtnText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  taskItem: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 12,
+    borderRadius: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: "#E6ECE9",
     shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
-  taskCardDone: {
-    backgroundColor: "#F7FAF8",
-    borderColor: "#E0EAE4",
+  taskItemDone: {
+    backgroundColor: "#F4F7F5",
+    borderColor: "#E0E8E3",
     opacity: 0.85,
   },
   checkWrap: {
-    marginRight: 12,
+    marginRight: 10,
     alignSelf: "flex-start",
     marginTop: 2,
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
     borderColor: colors.accent,
     alignItems: "center",
@@ -547,49 +988,29 @@ const styles = StyleSheet.create({
   checkboxDone: {
     backgroundColor: colors.accent,
   },
-  taskBody: {
+  taskTextWrap: {
     flex: 1,
     marginRight: 8,
   },
   taskTitle: {
-    fontSize: 15.5,
+    fontSize: 14.5,
     fontWeight: "700",
     color: colors.textDark,
-    lineHeight: 20,
+    lineHeight: 19,
   },
   taskTitleDone: {
     textDecorationLine: "line-through",
     color: colors.textMuted,
   },
   taskDesc: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: colors.textMuted,
-    marginTop: 4,
-    lineHeight: 17,
+    marginTop: 3,
+    lineHeight: 16,
   },
   taskDescDone: {
     textDecorationLine: "line-through",
-    opacity: 0.7,
-  },
-  taskMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    gap: 6,
-  },
-  recurrenceBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.accentLight,
-    paddingVertical: 3,
-    paddingHorizontal: 7,
-    borderRadius: 6,
-    gap: 4,
-  },
-  recurrenceBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.primaryDark,
+    opacity: 0.65,
   },
   assignBtn: {
     alignSelf: "center",
@@ -598,14 +1019,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: colors.surface,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 16,
-    gap: 6,
-    maxWidth: 110,
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    borderRadius: 14,
+    gap: 5,
+    maxWidth: 105,
   },
   assigneeName: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: colors.textDark,
     fontWeight: "700",
   },
@@ -615,15 +1036,33 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: "#D2DFD8",
-    borderRadius: 14,
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    gap: 5,
+    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    gap: 4,
   },
   unassignedText: {
     color: colors.accent,
     fontWeight: "700",
-    fontSize: 12,
+    fontSize: 11.5,
+  },
+  addInsideFolderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: "#DCE6E0",
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginTop: 4,
+    gap: 5,
+  },
+  addInsideFolderText: {
+    color: colors.primary,
+    fontSize: 12.5,
+    fontWeight: "700",
   },
   fab: {
     position: "absolute",
@@ -697,11 +1136,22 @@ const styles = StyleSheet.create({
   fieldGroup: {
     marginBottom: 16,
   },
+  fieldHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
   fieldLabel: {
     color: colors.textDark,
     fontWeight: "700",
     fontSize: 13.5,
     marginBottom: 8,
+  },
+  priorityHint: {
+    fontSize: 11,
+    color: colors.gold,
+    fontWeight: "700",
   },
   inputWrap: {
     flexDirection: "row",
@@ -729,35 +1179,43 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 10,
   },
-  recurrenceRow: {
+  recurrenceGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
-  recurrenceChip: {
-    flex: 1,
+  recurrenceCard: {
+    flexBasis: "48%",
+    flexGrow: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: colors.surface,
     paddingVertical: 10,
-    paddingHorizontal: 8,
-    gap: 6,
+    paddingHorizontal: 10,
   },
-  recurrenceChipActive: {
+  recurrenceCardActive: {
     backgroundColor: colors.accentLight,
     borderColor: colors.accent,
   },
-  recurrenceChipText: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontWeight: "600",
+  recurrenceCardPriorityActive: {
+    backgroundColor: colors.goldLight,
+    borderColor: colors.gold,
   },
-  recurrenceChipTextActive: {
-    color: colors.primary,
+  recurrenceCardLabel: {
+    fontSize: 13,
+    color: colors.textDark,
     fontWeight: "700",
+  },
+  recurrenceCardLabelActive: {
+    color: colors.primary,
+  },
+  recurrenceCardSub: {
+    fontSize: 10.5,
+    color: colors.textMuted,
+    marginTop: 1,
   },
   membersGrid: {
     flexDirection: "row",
@@ -855,4 +1313,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-
