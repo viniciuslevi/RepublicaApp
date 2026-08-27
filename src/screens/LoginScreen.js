@@ -66,10 +66,8 @@ export default function LoginScreen({ navigation }) {
               />
             </View>
             <Text style={styles.brand}>RepublicApp</Text>
-            <Text style={styles.tagline}>
-              Gestão inteligente e simples para sua moradia compartilhada.
-            </Text>
           </View>
+
 
 
           {/* Form Card */}
@@ -158,6 +156,18 @@ export default function LoginScreen({ navigation }) {
               style={styles.loginButton}
             />
 
+            {/* Register Link / Placeholder */}
+            <View style={styles.registerSection}>
+              <Pressable
+                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Text style={styles.registerText}>
+                  Ainda não tem uma conta?{" "}
+                  <Text style={styles.registerTextAccent}>Criar agora!</Text>
+                </Text>
+              </Pressable>
+            </View>
+
             {/* Quick Login Helper for Prototype */}
             <View style={styles.quickAccessSection}>
               <View style={styles.dividerRow}>
@@ -192,24 +202,13 @@ export default function LoginScreen({ navigation }) {
                 })}
               </View>
             </View>
-
-            {/* Footer / Register Placeholder */}
-            <View style={styles.footer}>
-              <Pressable
-                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-              >
-                <Text style={styles.footerLink}>
-                  Ainda não tem uma conta?{" "}
-                  <Text style={styles.footerLinkAccent}>Criar agora!</Text>
-                </Text>
-              </Pressable>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
 
 
 const styles = StyleSheet.create({
@@ -226,25 +225,25 @@ const styles = StyleSheet.create({
   hero: {
     alignItems: "center",
     paddingHorizontal: 28,
-    paddingTop: 20,
-    paddingBottom: 20,
+    paddingTop: 24,
+    paddingBottom: 22,
   },
   logoContainer: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
+    width: 155,
+    height: 155,
+    borderRadius: 77.5,
     backgroundColor: "rgba(255, 255, 255, 0.08)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
-    borderWidth: 2,
-    borderColor: "rgba(63, 155, 110, 0.4)",
+    marginBottom: 12,
+    borderWidth: 2.5,
+    borderColor: "rgba(63, 155, 110, 0.45)",
     overflow: "hidden",
     shadowColor: colors.accent,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
   },
   logoImage: {
     width: "100%",
@@ -252,17 +251,9 @@ const styles = StyleSheet.create({
   },
   brand: {
     color: colors.white,
-    fontSize: 30,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  tagline: {
-    color: colors.accentLight,
-    fontSize: 14,
-    marginTop: 6,
-    textAlign: "center",
-    lineHeight: 20,
-    maxWidth: 280,
+    fontSize: 34,
+    fontWeight: "900",
+    letterSpacing: 0.8,
   },
   card: {
     flex: 1,
@@ -340,8 +331,21 @@ const styles = StyleSheet.create({
   loginButton: {
     marginTop: 6,
   },
+  registerSection: {
+    marginTop: 18,
+    alignItems: "center",
+  },
+  registerText: {
+    color: colors.textMuted,
+    fontSize: 14,
+    textAlign: "center",
+  },
+  registerTextAccent: {
+    color: colors.accent,
+    fontWeight: "700",
+  },
   quickAccessSection: {
-    marginTop: 22,
+    marginTop: 28,
   },
   dividerRow: {
     flexDirection: "row",
@@ -355,7 +359,7 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: "600",
     paddingHorizontal: 10,
     textTransform: "uppercase",
@@ -392,18 +396,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: "700",
   },
-  footer: {
-    marginTop: 24,
-    alignItems: "center",
-  },
-  footerLink: {
-    color: colors.textMuted,
-    fontSize: 13.5,
-    textAlign: "center",
-  },
-  footerLinkAccent: {
-    color: colors.accent,
-    fontWeight: "700",
-  },
 });
+
 
