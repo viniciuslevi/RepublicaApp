@@ -1,4 +1,4 @@
-import { initialResidents } from "../data/mock";
+import { initialResidents } from "../data/mock.js";
 
 /**
  * MOCK DATABASE OF USERS
@@ -91,23 +91,45 @@ export const authService = {
    * @param {string} name
    * @param {string} email
    * @param {string} password
+   * @param {string} [phone]
+   * @returns {Promise<{success: boolean, user?: object, error?: string}>}
    */
-  async register(name, email, password) {
+  async register(name, email, password, phone = "") {
     await delay(350);
 
     const cleanName = (name || "").trim();
     const cleanEmail = (email || "").trim().toLowerCase();
     const cleanPassword = (password || "").trim();
+    const cleanPhone = (phone || "").trim();
 
     if (!cleanName) {
       return { success: false, error: "Informe o seu nome completo." };
     }
 
-    if (!cleanEmail || !isValidEmail(cleanEmail)) {
+    if (cleanName.length < 2) {
+      return { success: false, error: "O nome deve conter pelo menos 2 caracteres." };
+    }
+
+    if (!cleanEmail) {
+      return { success: false, error: "Informe o seu e-mail." };
+    }
+
+    if (!isValidEmail(cleanEmail)) {
       return { success: false, error: "Informe um e-mail válido." };
     }
 
-    if (!cleanPassword || cleanPassword.length < 3) {
+    if (MOCK_CREDENTIALS[cleanEmail]) {
+      return {
+        success: false,
+        error: "Este e-mail já está cadastrado. Faça login ou use outro e-mail.",
+      };
+    }
+
+    if (!cleanPassword) {
+      return { success: false, error: "Informe a sua senha." };
+    }
+
+    if (cleanPassword.length < 3) {
       return { success: false, error: "A senha deve ter pelo menos 3 caracteres." };
     }
 
@@ -115,12 +137,15 @@ export const authService = {
       id: `u_${Date.now()}`,
       name: cleanName,
       email: cleanEmail,
+      phone: cleanPhone || undefined,
     };
 
+    // Salva na base mockada de credenciais para permitir login subsequente
     MOCK_CREDENTIALS[cleanEmail] = {
       id: newUser.id,
       name: newUser.name,
       password: cleanPassword,
+      phone: cleanPhone,
     };
 
     return { success: true, user: newUser };
@@ -134,3 +159,4 @@ export const authService = {
     return null;
   },
 };
+

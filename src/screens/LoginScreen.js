@@ -156,9 +156,10 @@ export default function LoginScreen({ navigation }) {
               style={styles.loginButton}
             />
 
-            {/* Register Link / Placeholder */}
+            {/* Register Link */}
             <View style={styles.registerSection}>
               <Pressable
+                onPress={() => navigation.navigate("Register")}
                 style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
               >
                 <Text style={styles.registerText}>
