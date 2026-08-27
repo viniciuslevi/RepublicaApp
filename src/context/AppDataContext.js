@@ -1,5 +1,10 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, useState, useEffect } from "react";
 import { initialResidents, initialTasks, initialExpenses, initialResidences } from "../data/mock";
+import {
+  checkAndResetRecurringTasks,
+  calculateNextDueDate,
+  createNormalizedTask,
+} from "../services/recurrenceService";
 
 const AppDataContext = createContext(null);
 
@@ -11,6 +16,14 @@ export function AppDataProvider({ children }) {
   const [residents, setResidents] = useState(initialResidents);
   const [tasks, setTasks] = useState(initialTasks);
   const [expenses, setExpenses] = useState(initialExpenses);
+
+  // Executa verificação de ciclo de reset de tarefas recorrentes ao carregar o app
+  useEffect(() => {
+    setTasks((prevTasks) => {
+      const { tasks: resetTasks, resetCount } = checkAndResetRecurringTasks(prevTasks);
+      return resetCount > 0 ? resetTasks : prevTasks;
+    });
+  }, []);
 
   const residentById = useMemo(() => {
     const map = {};
@@ -79,8 +92,22 @@ export function AppDataProvider({ children }) {
   }
 
   function toggleTaskDone(taskId) {
+    const now = new Date();
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t))
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+
+        const nextDone = !t.done;
+        return {
+          ...t,
+          done: nextDone,
+          lastCompletedAt: nextDone ? now.toISOString() : null,
+          nextDueDate:
+            nextDone && t.recurrence && t.recurrence !== "Única"
+              ? calculateNextDueDate(t.recurrence, now)
+              : t.nextDueDate || null,
+        };
+      })
     );
   }
 
@@ -90,36 +117,28 @@ export function AppDataProvider({ children }) {
     );
   }
 
-  function addTask(titleOrData, recurrence = "Semanal", assigneeId = null, description = "") {
-    const id = `t${Date.now()}`;
+  function addTask(titleOrData, recurrence = "Única", assigneeId = null, description = "") {
+    let newTask;
     if (typeof titleOrData === "object" && titleOrData !== null) {
-      const taskData = titleOrData;
-      setTasks((prev) => [
-        {
-          id,
-          title: (taskData.title || "").trim(),
-          description: (taskData.description || "").trim(),
-          assigneeId: taskData.assigneeId || null,
-          recurrence: taskData.recurrence || "Semanal",
-          done: false,
-        },
-        ...prev,
-      ]);
-      return id;
+      newTask = createNormalizedTask(titleOrData);
+    } else {
+      newTask = createNormalizedTask({
+        title: titleOrData,
+        description,
+        assigneeId,
+        recurrence,
+      });
     }
 
-    setTasks((prev) => [
-      {
-        id,
-        title: (titleOrData || "").trim(),
-        description: (description || "").trim(),
-        assigneeId: assigneeId || null,
-        recurrence: recurrence || "Semanal",
-        done: false,
-      },
-      ...prev,
-    ]);
-    return id;
+    setTasks((prev) => [newTask, ...prev]);
+    return newTask.id;
+  }
+
+  function resetRecurringTasksNow(referenceDate = new Date()) {
+    setTasks((prevTasks) => {
+      const { tasks: resetTasks } = checkAndResetRecurringTasks(prevTasks, referenceDate);
+      return resetTasks;
+    });
   }
 
   function addExpense(description, value, payerId) {
@@ -158,6 +177,7 @@ export function AppDataProvider({ children }) {
     toggleTaskDone,
     assignTask,
     addTask,
+    resetRecurringTasksNow,
     expenses,
     addExpense,
     totalExpenses,

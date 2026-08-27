@@ -18,6 +18,7 @@ import Avatar from "../components/Avatar";
 import PrimaryButton from "../components/PrimaryButton";
 import { colors } from "../theme/colors";
 import { useAppData } from "../context/AppDataContext";
+import { useAuth } from "../context/AuthContext";
 
 /**
  * Definição das pastas de recorrência em ordem de prioridade.
@@ -74,6 +75,7 @@ const RECURRENCE_OPTIONS = [
 ];
 
 export default function TasksScreen() {
+  const { user } = useAuth();
   const { tasks, residents, residentById, toggleTaskDone, assignTask, addTask } = useAppData();
 
   // Estados dos modais
@@ -97,6 +99,21 @@ export default function TasksScreen() {
 
   const isFocused = useIsFocused();
 
+  // Identifica o perfil de morador vinculado ao usuário logado
+  const currentResident = useMemo(() => {
+    if (!user) return residents[0] || null;
+    return (
+      residents.find(
+        (r) =>
+          r.id === user.id ||
+          (r.email && user.email && r.email.toLowerCase() === user.email.toLowerCase()) ||
+          (r.name && user.name && r.name.toLowerCase() === user.name.toLowerCase())
+      ) || residents[0]
+    );
+  }, [residents, user]);
+
+  const currentResidentId = currentResident?.id;
+
   // Fecha modais automaticamente ao perder foco de tela
   useEffect(() => {
     if (!isFocused) {
@@ -116,7 +133,7 @@ export default function TasksScreen() {
     setNewTitle("");
     setNewDescription("");
     setNewRecurrence(defaultRecurrence || "Única");
-    setNewAssigneeId(null);
+    setNewAssigneeId(currentResidentId || null);
     setAddError("");
     setAddModalVisible(true);
   }
@@ -146,7 +163,7 @@ export default function TasksScreen() {
     handleCloseAddModal();
   }
 
-  // Agrupamento de tarefas por pasta de recorrência (preparado para backend flat list)
+  // Agrupamento de tarefas por pasta de recorrência
   const tasksByFolder = useMemo(() => {
     const map = {
       Única: [],
@@ -171,13 +188,40 @@ export default function TasksScreen() {
     return map;
   }, [tasks]);
 
+  // Contagem de tarefas pendentes designadas especificamente para o usuário logado por pasta
+  const myPendingCountByFolder = useMemo(() => {
+    const counts = { Única: 0, Diária: 0, Semanal: 0, Mensal: 0 };
+    if (!currentResidentId) return counts;
+
+    tasks.forEach((task) => {
+      if (!task.done && task.assigneeId === currentResidentId) {
+        const rec =
+          task.recurrence === "Sem recorrência" || !task.recurrence
+            ? "Única"
+            : task.recurrence;
+
+        if (counts[rec] !== undefined) {
+          counts[rec] += 1;
+        } else {
+          counts.Única += 1;
+        }
+      }
+    });
+
+    return counts;
+  }, [tasks, currentResidentId]);
+
   // Estatísticas gerais
   const stats = useMemo(() => {
     const total = tasks.length;
     const completed = tasks.filter((t) => t.done).length;
     const pending = total - completed;
-    return { total, completed, pending };
-  }, [tasks]);
+    const myTotalPending = Object.values(myPendingCountByFolder).reduce(
+      (acc, c) => acc + c,
+      0
+    );
+    return { total, completed, pending, myTotalPending };
+  }, [tasks, myPendingCountByFolder]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -188,22 +232,43 @@ export default function TasksScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Card Resumo de Progresso das Tarefas */}
+          {/* Card Resumo com Destaque do Morador Logado */}
           <View style={styles.overviewCard}>
-            <View style={styles.overviewInfo}>
-              <Text style={styles.overviewTitle}>Painel de Tarefas</Text>
-              <Text style={styles.overviewSub}>
-                {stats.pending > 0
-                  ? `${stats.pending} tarefa(s) pendente(s) · ${stats.completed} concluída(s)`
-                  : "Todas as tarefas da casa estão em dia! 🎉"}
-              </Text>
+            <View style={styles.overviewUserRow}>
+              <Avatar name={currentResident?.name || "Morador"} size={36} />
+              <View style={styles.overviewInfo}>
+                <Text style={styles.overviewUserGreeting}>
+                  Olá, {currentResident?.name || "Morador"}! 👋
+                </Text>
+                <Text style={styles.overviewSub}>
+                  {stats.myTotalPending > 0
+                    ? `Você tem ${stats.myTotalPending} tarefa(s) pendente(s) designada(s) a você.`
+                    : "Você não tem nenhuma tarefa pendente! Tudo em dia 🎉"}
+                </Text>
+              </View>
             </View>
-            <View style={styles.overviewBadge}>
-              <Ionicons name="checkbox" size={16} color={colors.accent} />
-              <Text style={styles.overviewBadgeText}>
+
+            {/* Barra de Progresso Geral */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBarBackground}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    {
+                      width:
+                        stats.total > 0
+                          ? `${Math.round((stats.completed / stats.total) * 100)}%`
+                          : "0%",
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.progressText}>
+                {stats.completed}/{stats.total} concluídas (
                 {stats.total > 0
                   ? `${Math.round((stats.completed / stats.total) * 100)}%`
                   : "0%"}
+                )
               </Text>
             </View>
           </View>
@@ -213,6 +278,7 @@ export default function TasksScreen() {
             const folderTasks = tasksByFolder[folder.id] || [];
             const folderTotal = folderTasks.length;
             const folderCompleted = folderTasks.filter((t) => t.done).length;
+            const myPendingInThisFolder = myPendingCountByFolder[folder.id] || 0;
             const isOpen = !!openFolders[folder.id];
 
             return (
@@ -221,6 +287,7 @@ export default function TasksScreen() {
                 style={[
                   styles.folderCard,
                   folder.isPriority && styles.folderCardPriority,
+                  myPendingInThisFolder > 0 && styles.folderCardWithMyTasks,
                 ]}
               >
                 {/* Cabeçalho da Pasta (Clicável para expandir/recolher) */}
@@ -232,22 +299,33 @@ export default function TasksScreen() {
                   ]}
                   onPress={() => toggleFolder(folder.id)}
                 >
-                  <View
-                    style={[
-                      styles.folderIconWrap,
-                      { backgroundColor: folder.bgColor },
-                    ]}
-                  >
-                    <Ionicons
-                      name={isOpen ? "folder-open" : folder.icon}
-                      size={20}
-                      color={folder.accentColor}
-                    />
+                  <View style={styles.folderIconContainer}>
+                    <View
+                      style={[
+                        styles.folderIconWrap,
+                        { backgroundColor: folder.bgColor },
+                      ]}
+                    >
+                      <Ionicons
+                        name={isOpen ? "folder-open" : folder.icon}
+                        size={20}
+                        color={folder.accentColor}
+                      />
+                    </View>
+
+                    {/* CÍRCULO VERDE DE AVISO (Aparece se o usuário logado tiver tarefas a fazer nessa pasta) */}
+                    {myPendingInThisFolder > 0 ? (
+                      <View style={styles.greenAlertBadge}>
+                        <View style={styles.greenAlertDot} />
+                      </View>
+                    ) : null}
                   </View>
 
                   <View style={styles.folderHeaderTextWrap}>
                     <View style={styles.folderTitleRow}>
                       <Text style={styles.folderTitle}>{folder.label}</Text>
+
+                      {/* Tag de Prioridade / Tipo */}
                       {folder.tag ? (
                         <View
                           style={[
@@ -265,7 +343,17 @@ export default function TasksScreen() {
                           </Text>
                         </View>
                       ) : null}
+
+                      {/* Badge Verde de Tarefas do Usuário */}
+                      {myPendingInThisFolder > 0 ? (
+                        <View style={styles.myTasksPill}>
+                          <Text style={styles.myTasksPillText}>
+                            ● {myPendingInThisFolder} para você
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
+
                     <Text style={styles.folderSub} numberOfLines={1}>
                       {folderTotal === 0
                         ? "Nenhuma tarefa nesta pasta"
@@ -315,12 +403,19 @@ export default function TasksScreen() {
                           const assignee = item.assigneeId
                             ? residentById[item.assigneeId]
                             : null;
+                          const isAssignedToMe =
+                            !!currentResidentId &&
+                            item.assigneeId === currentResidentId;
+
+                          // HIGHLIGHT: Ativo apenas enquanto a tarefa do usuário logado NÃO estiver concluída
+                          const isMyPendingTask = isAssignedToMe && !item.done;
 
                           return (
                             <View
                               key={item.id}
                               style={[
                                 styles.taskItem,
+                                isMyPendingTask && styles.taskItemMyPending,
                                 item.done && styles.taskItemDone,
                               ]}
                             >
@@ -333,6 +428,7 @@ export default function TasksScreen() {
                                 <View
                                   style={[
                                     styles.checkbox,
+                                    isMyPendingTask && styles.checkboxMyPending,
                                     item.done && styles.checkboxDone,
                                   ]}
                                 >
@@ -348,14 +444,29 @@ export default function TasksScreen() {
 
                               {/* Conteúdo textual da Tarefa */}
                               <View style={styles.taskTextWrap}>
+                                {isMyPendingTask ? (
+                                  <View style={styles.myTaskNoticeBadge}>
+                                    <Ionicons
+                                      name="person"
+                                      size={11}
+                                      color={colors.white}
+                                    />
+                                    <Text style={styles.myTaskNoticeBadgeText}>
+                                      SUA VEZ
+                                    </Text>
+                                  </View>
+                                ) : null}
+
                                 <Text
                                   style={[
                                     styles.taskTitle,
+                                    isMyPendingTask && styles.taskTitleMyPending,
                                     item.done && styles.taskTitleDone,
                                   ]}
                                 >
                                   {item.title}
                                 </Text>
+
                                 {item.description ? (
                                   <Text
                                     style={[
@@ -379,13 +490,25 @@ export default function TasksScreen() {
                                 hitSlop={6}
                               >
                                 {assignee ? (
-                                  <View style={styles.assigneePill}>
+                                  <View
+                                    style={[
+                                      styles.assigneePill,
+                                      isMyPendingTask &&
+                                        styles.assigneePillMyPending,
+                                    ]}
+                                  >
                                     <Avatar name={assignee.name} size={22} />
                                     <Text
-                                      style={styles.assigneeName}
+                                      style={[
+                                        styles.assigneeName,
+                                        isMyPendingTask &&
+                                          styles.assigneeNameMyPending,
+                                      ]}
                                       numberOfLines={1}
                                     >
-                                      {assignee.name}
+                                      {isAssignedToMe
+                                        ? "Você"
+                                        : assignee.name}
                                     </Text>
                                   </View>
                                 ) : (
@@ -504,6 +627,8 @@ export default function TasksScreen() {
             {/* Lista de Moradores */}
             {residents.map((r) => {
               const isCurrentAssignee = assignModalTask?.assigneeId === r.id;
+              const isMe = r.id === currentResidentId;
+
               return (
                 <Pressable
                   key={r.id}
@@ -523,7 +648,7 @@ export default function TasksScreen() {
                       isCurrentAssignee && styles.residentNameActive,
                     ]}
                   >
-                    {r.name}
+                    {r.name} {isMe ? "(Você)" : ""}
                   </Text>
                   {isCurrentAssignee ? (
                     <Ionicons
@@ -723,6 +848,8 @@ export default function TasksScreen() {
                     {/* Moradores cadastrados */}
                     {residents.map((r) => {
                       const isSelected = newAssigneeId === r.id;
+                      const isMe = r.id === currentResidentId;
+
                       return (
                         <Pressable
                           key={r.id}
@@ -740,7 +867,7 @@ export default function TasksScreen() {
                             ]}
                             numberOfLines={1}
                           >
-                            {r.name}
+                            {r.name} {isMe ? "(Você)" : ""}
                           </Text>
                         </Pressable>
                       );
@@ -799,47 +926,60 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   overviewCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
     backgroundColor: colors.white,
-    padding: 14,
-    borderRadius: 16,
+    padding: 16,
+    borderRadius: 18,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#E5ECE8",
+    borderColor: "#E2EAE5",
     shadowColor: "#000",
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    elevation: 2,
+  },
+  overviewUserRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   overviewInfo: {
     flex: 1,
+    marginLeft: 12,
   },
-  overviewTitle: {
-    fontSize: 15,
+  overviewUserGreeting: {
+    fontSize: 15.5,
     fontWeight: "800",
     color: colors.primary,
   },
   overviewSub: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: colors.textMuted,
     marginTop: 2,
+    lineHeight: 17,
   },
-  overviewBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.accentLight,
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    borderRadius: 12,
-    gap: 4,
+  progressContainer: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#EEF3F0",
   },
-  overviewBadgeText: {
-    fontSize: 12.5,
-    fontWeight: "800",
-    color: colors.primary,
+  progressBarBackground: {
+    height: 6,
+    backgroundColor: colors.surface,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: colors.accent,
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 11.5,
+    color: colors.textMuted,
+    fontWeight: "600",
+    marginTop: 6,
+    textAlign: "right",
   },
   folderCard: {
     backgroundColor: colors.white,
@@ -857,6 +997,9 @@ const styles = StyleSheet.create({
   folderCardPriority: {
     borderColor: "rgba(184, 134, 11, 0.4)",
   },
+  folderCardWithMyTasks: {
+    borderColor: "rgba(63, 155, 110, 0.5)",
+  },
   folderHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -868,12 +1011,34 @@ const styles = StyleSheet.create({
     borderBottomColor: "#EEF3F0",
     backgroundColor: "#FCFDFC",
   },
+  folderIconContainer: {
+    position: "relative",
+  },
   folderIconWrap: {
     width: 42,
     height: 42,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+  },
+  greenAlertBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.accent,
+    borderWidth: 2,
+    borderColor: colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  greenAlertDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.white,
   },
   folderHeaderTextWrap: {
     flex: 1,
@@ -882,6 +1047,7 @@ const styles = StyleSheet.create({
   folderTitleRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 6,
   },
   folderTitle: {
@@ -907,6 +1073,19 @@ const styles = StyleSheet.create({
   folderTagTextPriority: {
     color: colors.gold,
   },
+  myTasksPill: {
+    backgroundColor: colors.accentLight,
+    paddingVertical: 2,
+    paddingHorizontal: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  myTasksPillText: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: colors.primaryDark,
+  },
   folderSub: {
     fontSize: 12,
     color: colors.textMuted,
@@ -921,7 +1100,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAF9",
   },
   tasksListWrap: {
-    gap: 8,
+    gap: 10,
   },
   emptyFolderBox: {
     alignItems: "center",
@@ -966,10 +1145,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
+  // HIGHLIGHT PARA TAREFA PENDENTE DO USUÁRIO LOGADO
+  taskItemMyPending: {
+    backgroundColor: "#F0FAF5",
+    borderWidth: 2,
+    borderColor: colors.accent,
+    shadowColor: colors.accent,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
   taskItemDone: {
     backgroundColor: "#F4F7F5",
     borderColor: "#E0E8E3",
-    opacity: 0.85,
+    opacity: 0.82,
   },
   checkWrap: {
     marginRight: 10,
@@ -985,6 +1175,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  checkboxMyPending: {
+    borderColor: colors.accent,
+    borderWidth: 2.5,
+  },
   checkboxDone: {
     backgroundColor: colors.accent,
   },
@@ -992,11 +1186,32 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  myTaskNoticeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: colors.accent,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    marginBottom: 4,
+    gap: 4,
+  },
+  myTaskNoticeBadgeText: {
+    color: colors.white,
+    fontSize: 9.5,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
   taskTitle: {
     fontSize: 14.5,
     fontWeight: "700",
     color: colors.textDark,
     lineHeight: 19,
+  },
+  taskTitleMyPending: {
+    color: colors.primaryDark,
+    fontWeight: "800",
   },
   taskTitleDone: {
     textDecorationLine: "line-through",
@@ -1023,12 +1238,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     borderRadius: 14,
     gap: 5,
-    maxWidth: 105,
+    maxWidth: 110,
+  },
+  assigneePillMyPending: {
+    backgroundColor: colors.accentLight,
+    borderWidth: 1,
+    borderColor: colors.accent,
   },
   assigneeName: {
     fontSize: 11.5,
     color: colors.textDark,
     fontWeight: "700",
+  },
+  assigneeNameMyPending: {
+    color: colors.primaryDark,
+    fontWeight: "800",
   },
   unassignedPill: {
     flexDirection: "row",
