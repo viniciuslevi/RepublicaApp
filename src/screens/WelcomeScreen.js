@@ -7,14 +7,19 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { Ionicons } from "@expo/vector-icons";
 import PrimaryButton from "../components/PrimaryButton";
+import Avatar from "../components/Avatar";
 import { colors } from "../theme/colors";
 import { useAppData } from "../context/AppDataContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function WelcomeScreen({ navigation }) {
   const { setGroupName, inviteCode } = useAppData();
+  const { user, logout } = useAuth();
   const [mode, setMode] = useState("create"); // "create" | "join"
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -44,6 +49,11 @@ export default function WelcomeScreen({ navigation }) {
     navigation.replace("Main");
   }
 
+  function handleBackToLogin() {
+    logout();
+    navigation.replace("Login");
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -51,11 +61,28 @@ export default function WelcomeScreen({ navigation }) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.hero}>
+          <View style={styles.heroHeader}>
+            <Pressable
+              onPress={handleBackToLogin}
+              style={styles.backButton}
+              hitSlop={8}
+            >
+              <Ionicons name="arrow-back" size={20} color={colors.white} />
+              <Text style={styles.backButtonText}>Login</Text>
+            </Pressable>
+            {user ? (
+              <View style={styles.userBadge}>
+                <Avatar name={user.name} size={22} />
+                <Text style={styles.userBadgeText}>{user.name}</Text>
+              </View>
+            ) : null}
+          </View>
           <Text style={styles.brand}>RepublicApp</Text>
           <Text style={styles.tagline}>
             Tarefas, despesas e responsabilidades da sua casa em um só lugar.
           </Text>
         </View>
+
 
         <View style={styles.card}>
           <View style={styles.tabs}>
@@ -121,7 +148,41 @@ export default function WelcomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.primary },
   flex: { flex: 1 },
-  hero: { paddingHorizontal: 28, paddingTop: 36, paddingBottom: 24 },
+  hero: { paddingHorizontal: 28, paddingTop: 20, paddingBottom: 20 },
+  heroHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+  },
+  backButtonText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+  userBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    gap: 6,
+  },
+  userBadgeText: {
+    color: colors.accentLight,
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
   brand: { color: colors.white, fontSize: 34, fontWeight: "800" },
   tagline: { color: colors.accentLight, fontSize: 15, marginTop: 8, lineHeight: 21 },
   card: {

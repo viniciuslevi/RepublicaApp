@@ -4,6 +4,8 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 
+import LoginScreen from "../screens/LoginScreen";
+import SelectResidenceScreen from "../screens/SelectResidenceScreen";
 import WelcomeScreen from "../screens/WelcomeScreen";
 import TasksScreen from "../screens/TasksScreen";
 import ExpensesScreen from "../screens/ExpensesScreen";
@@ -43,10 +45,17 @@ function MainTabs() {
 export default function RootNavigator() {
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{ headerShown: false }}
+        initialRouteName="Login"
+      >
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="SelectResidence" component={SelectResidenceScreen} />
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+
+
