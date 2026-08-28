@@ -46,6 +46,7 @@ export function AppDataProvider({ children }) {
       address: address.trim() || "Endereço não informado",
       description: "Nova residência criada",
       members: ["Você"],
+      adminId: residents[0]?.id ?? null,
     };
 
     setResidences((prev) => [newResidence, ...prev]);
@@ -81,6 +82,7 @@ export function AppDataProvider({ children }) {
         address: "República Compartilhada",
         description: "Entrou via código de convite",
         members: ["Você", "Outro morador"],
+        adminId: residents[0]?.id ?? null,
       };
       setResidences((prev) => [joinedResidence, ...prev]);
       setActiveResidence(joinedResidence);
@@ -89,6 +91,21 @@ export function AppDataProvider({ children }) {
     }
 
     return { success: false, error: "Código de convite inválido ou não encontrado." };
+  }
+
+  function removeResident(residentId) {
+    if (residents.length <= 1) {
+      return { success: false, error: "Não é possível remover o último morador da república." };
+    }
+    if (activeResidence?.adminId === residentId) {
+      return { success: false, error: "O administrador da república não pode ser removido." };
+    }
+
+    setResidents((prev) => prev.filter((r) => r.id !== residentId));
+    setTasks((prev) =>
+      prev.map((t) => (t.assigneeId === residentId ? { ...t, assigneeId: null } : t))
+    );
+    return { success: true };
   }
 
   function toggleTaskDone(taskId) {
@@ -228,6 +245,7 @@ export function AppDataProvider({ children }) {
     inviteCode,
     residents,
     residentById,
+    removeResident,
     tasks,
     toggleTaskDone,
     assignTask,
