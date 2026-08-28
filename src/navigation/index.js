@@ -11,6 +11,7 @@ import TasksScreen from "../screens/TasksScreen";
 import ExpensesScreen from "../screens/ExpensesScreen";
 import SummaryScreen from "../screens/SummaryScreen";
 import MembersScreen from "../screens/MembersScreen";
+import UpcomingOccurrencesScreen from "../screens/UpcomingOccurrencesScreen";
 import { colors } from "../theme/colors";
 
 const Stack = createNativeStackNavigator();
@@ -55,6 +56,7 @@ export default function RootNavigator() {
         <Stack.Screen name="SelectResidence" component={SelectResidenceScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="Members" component={MembersScreen} />
+        <Stack.Screen name="UpcomingOccurrences" component={UpcomingOccurrencesScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
