@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  Animated,
+  LayoutAnimation,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -75,6 +76,237 @@ const RECURRENCE_OPTIONS = [
   { id: "Mensal", label: "Mensal", sub: "Todo mês", icon: "calendar-number-outline" },
 ];
 
+/**
+ * Helper para transição suave de layout sem disparar warnings no Android/iOS
+ */
+function triggerSmoothLayoutAnimation() {
+  try {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  } catch (e) {
+    // Silencia qualquer exceção de layout animation se não suportado no ambiente
+  }
+}
+
+/**
+ * Card individual de tarefa com micro-animação muito sutil e elegante
+ */
+function TaskCardItem({
+  item,
+  assignee,
+  isAssignedToMe,
+  isMyPendingTask,
+  isSelectedForDeletion,
+  isDeleting,
+  isSelectionMode,
+  onPress,
+  onLongPress,
+  onToggleDone,
+  onAssignPress,
+}) {
+  const microShakeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  // Micro-tremor super leve (apenas um sutil detalhe estético) quando selecionado
+  useEffect(() => {
+    if (isSelectedForDeletion) {
+      const shakeLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(microShakeAnim, {
+            toValue: -1,
+            duration: 110,
+            useNativeDriver: true,
+          }),
+          Animated.timing(microShakeAnim, {
+            toValue: 1,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+          Animated.timing(microShakeAnim, {
+            toValue: 0,
+            duration: 110,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      shakeLoop.start();
+      return () => shakeLoop.stop();
+    } else {
+      microShakeAnim.stopAnimation();
+      microShakeAnim.setValue(0);
+    }
+  }, [isSelectedForDeletion]);
+
+  // Transição suave e delicada no momento da exclusão
+  useEffect(() => {
+    if (isDeleting) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.94,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isDeleting]);
+
+  const animatedStyle = {
+    opacity: fadeAnim,
+    transform: [
+      { scale: scaleAnim },
+      {
+        rotate: microShakeAnim.interpolate({
+          inputRange: [-1, 0, 1],
+          outputRange: ["-0.4deg", "0deg", "0.4deg"],
+        }),
+      },
+      {
+        translateX: microShakeAnim.interpolate({
+          inputRange: [-1, 0, 1],
+          outputRange: [-0.6, 0, 0.6],
+        }),
+      },
+    ],
+  };
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.taskItem,
+          isMyPendingTask && styles.taskItemMyPending,
+          isSelectedForDeletion && styles.taskItemSelectedForDeletion,
+          item.done && styles.taskItemDone,
+          pressed && { opacity: 0.9 },
+        ]}
+        onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={300}
+      >
+        {/* Checkbox de Seleção no Modo de Exclusão OU Conclusão */}
+        {isSelectionMode ? (
+          <View
+            style={[
+              styles.selectionCircle,
+              isSelectedForDeletion && styles.selectionCircleActive,
+            ]}
+          >
+            {isSelectedForDeletion ? (
+              <Ionicons name="trash" size={13} color={colors.white} />
+            ) : (
+              <View style={styles.selectionCircleEmpty} />
+            )}
+          </View>
+        ) : (
+          <Pressable
+            onPress={onToggleDone}
+            style={styles.checkWrap}
+            hitSlop={8}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                isMyPendingTask && styles.checkboxMyPending,
+                item.done && styles.checkboxDone,
+              ]}
+            >
+              {item.done ? (
+                <Ionicons name="checkmark" size={15} color={colors.white} />
+              ) : null}
+            </View>
+          </Pressable>
+        )}
+
+        {/* Conteúdo textual da Tarefa */}
+        <View style={styles.taskTextWrap}>
+          {isMyPendingTask && !isSelectedForDeletion ? (
+            <View style={styles.myTaskNoticeBadge}>
+              <Ionicons name="person" size={10} color={colors.white} />
+              <Text style={styles.myTaskNoticeBadgeText}>SUA VEZ</Text>
+            </View>
+          ) : null}
+
+          <Text
+            style={[
+              styles.taskTitle,
+              isMyPendingTask && styles.taskTitleMyPending,
+              isSelectedForDeletion && styles.taskTitleSelected,
+              item.done && styles.taskTitleDone,
+            ]}
+          >
+            {item.title}
+          </Text>
+
+          {item.description ? (
+            <Text
+              style={[styles.taskDesc, item.done && styles.taskDescDone]}
+              numberOfLines={2}
+            >
+              {item.description}
+            </Text>
+          ) : null}
+        </View>
+
+        {/* Atribuição de Responsável */}
+        {!isSelectionMode ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.assignBtn,
+              pressed && { opacity: 0.75 },
+            ]}
+            onPress={onAssignPress}
+            hitSlop={6}
+          >
+            {assignee ? (
+              <View
+                style={[
+                  styles.assigneePill,
+                  isMyPendingTask && styles.assigneePillMyPending,
+                ]}
+              >
+                <Avatar name={assignee.name} size={22} />
+                <Text
+                  style={[
+                    styles.assigneeName,
+                    isMyPendingTask && styles.assigneeNameMyPending,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {isAssignedToMe ? "Você" : assignee.name}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.unassignedPill}>
+                <Ionicons
+                  name="person-add-outline"
+                  size={12}
+                  color={colors.accent}
+                />
+                <Text style={styles.unassignedText}>Atribuir</Text>
+              </View>
+            )}
+          </Pressable>
+        ) : (
+          <View style={styles.selectHintIcon}>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={
+                isSelectedForDeletion ? colors.danger : colors.textMuted
+              }
+            />
+          </View>
+        )}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export default function TasksScreen() {
   const { user } = useAuth();
   const {
@@ -97,6 +329,8 @@ export default function TasksScreen() {
 
   // Modo de seleção múltipla para exclusão (ativado via Long Press)
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
+  // IDs das tarefas em animação de saída/exclusão
+  const [deletingTaskIds, setDeletingTaskIds] = useState([]);
 
   // Controle de pastas abertas/fechadas: todas iniciam FECHADAS ao entrar na tela
   const [openFolders, setOpenFolders] = useState({
@@ -137,6 +371,7 @@ export default function TasksScreen() {
       setAssignModalTask(null);
       setModalVisible(false);
       setSelectedTaskIds([]);
+      setDeletingTaskIds([]);
     }
   }, [isFocused]);
 
@@ -228,12 +463,21 @@ export default function TasksScreen() {
     handleCloseModal();
   }
 
-  // Exclui tarefa individualmente a partir do modal de edição
+  // Exclui tarefa individualmente a partir do modal de edição com animação suave
   function handleDeleteSingleTaskFromModal() {
     if (!editingTask) return;
 
-    deleteTask(editingTask.id);
+    const idToDelete = editingTask.id;
     handleCloseModal();
+
+    // Engatilha animação suave de transição
+    setDeletingTaskIds([idToDelete]);
+
+    setTimeout(() => {
+      triggerSmoothLayoutAnimation();
+      deleteTask(idToDelete);
+      setDeletingTaskIds([]);
+    }, 190);
   }
 
   // Ativa seleção com Long Press
@@ -259,12 +503,19 @@ export default function TasksScreen() {
     setSelectedTaskIds([]);
   }
 
-  // Exclui todas as tarefas selecionadas
+  // Exclui todas as tarefas selecionadas com animação suave
   function handleDeleteSelectedTasks() {
     if (selectedTaskIds.length === 0) return;
 
-    deleteTasks(selectedTaskIds);
-    setSelectedTaskIds([]);
+    const idsToDelete = [...selectedTaskIds];
+    setDeletingTaskIds(idsToDelete);
+
+    setTimeout(() => {
+      triggerSmoothLayoutAnimation();
+      deleteTasks(idsToDelete);
+      setSelectedTaskIds([]);
+      setDeletingTaskIds([]);
+    }, 190);
   }
 
   // Agrupamento de tarefas por pasta de recorrência
@@ -567,164 +818,23 @@ export default function TasksScreen() {
                           const isSelectedForDeletion = selectedTaskIds.includes(
                             item.id
                           );
+                          const isDeleting = deletingTaskIds.includes(item.id);
 
                           return (
-                            <Pressable
+                            <TaskCardItem
                               key={item.id}
-                              style={({ pressed }) => [
-                                styles.taskItem,
-                                isMyPendingTask && styles.taskItemMyPending,
-                                isSelectedForDeletion &&
-                                  styles.taskItemSelectedForDeletion,
-                                item.done && styles.taskItemDone,
-                                pressed && { opacity: 0.9 },
-                              ]}
+                              item={item}
+                              assignee={assignee}
+                              isAssignedToMe={isAssignedToMe}
+                              isMyPendingTask={isMyPendingTask}
+                              isSelectedForDeletion={isSelectedForDeletion}
+                              isDeleting={isDeleting}
+                              isSelectionMode={isSelectionMode}
                               onPress={() => handleOpenEditModal(item)}
                               onLongPress={() => handleLongPressTask(item.id)}
-                              delayLongPress={300}
-                            >
-                              {/* Checkbox de Seleção no Modo de Exclusão OU Conclusão */}
-                              {isSelectionMode ? (
-                                <View
-                                  style={[
-                                    styles.selectionCircle,
-                                    isSelectedForDeletion &&
-                                      styles.selectionCircleActive,
-                                  ]}
-                                >
-                                  {isSelectedForDeletion ? (
-                                    <Ionicons
-                                      name="trash"
-                                      size={13}
-                                      color={colors.white}
-                                    />
-                                  ) : (
-                                    <View style={styles.selectionCircleEmpty} />
-                                  )}
-                                </View>
-                              ) : (
-                                <Pressable
-                                  onPress={() => toggleTaskDone(item.id)}
-                                  style={styles.checkWrap}
-                                  hitSlop={8}
-                                >
-                                  <View
-                                    style={[
-                                      styles.checkbox,
-                                      isMyPendingTask && styles.checkboxMyPending,
-                                      item.done && styles.checkboxDone,
-                                    ]}
-                                  >
-                                    {item.done ? (
-                                      <Ionicons
-                                        name="checkmark"
-                                        size={15}
-                                        color={colors.white}
-                                      />
-                                    ) : null}
-                                  </View>
-                                </Pressable>
-                              )}
-
-                              {/* Conteúdo textual da Tarefa */}
-                              <View style={styles.taskTextWrap}>
-                                {isMyPendingTask && !isSelectedForDeletion ? (
-                                  <View style={styles.myTaskNoticeBadge}>
-                                    <Ionicons
-                                      name="person"
-                                      size={10}
-                                      color={colors.white}
-                                    />
-                                    <Text style={styles.myTaskNoticeBadgeText}>
-                                      SUA VEZ
-                                    </Text>
-                                  </View>
-                                ) : null}
-
-                                <Text
-                                  style={[
-                                    styles.taskTitle,
-                                    isMyPendingTask && styles.taskTitleMyPending,
-                                    isSelectedForDeletion &&
-                                      styles.taskTitleSelected,
-                                    item.done && styles.taskTitleDone,
-                                  ]}
-                                >
-                                  {item.title}
-                                </Text>
-
-                                {item.description ? (
-                                  <Text
-                                    style={[
-                                      styles.taskDesc,
-                                      item.done && styles.taskDescDone,
-                                    ]}
-                                    numberOfLines={2}
-                                  >
-                                    {item.description}
-                                  </Text>
-                                ) : null}
-                              </View>
-
-                              {/* Atribuição de Responsável */}
-                              {!isSelectionMode ? (
-                                <Pressable
-                                  style={({ pressed }) => [
-                                    styles.assignBtn,
-                                    pressed && { opacity: 0.75 },
-                                  ]}
-                                  onPress={() => setAssignModalTask(item)}
-                                  hitSlop={6}
-                                >
-                                  {assignee ? (
-                                    <View
-                                      style={[
-                                        styles.assigneePill,
-                                        isMyPendingTask &&
-                                          styles.assigneePillMyPending,
-                                      ]}
-                                    >
-                                      <Avatar name={assignee.name} size={22} />
-                                      <Text
-                                        style={[
-                                          styles.assigneeName,
-                                          isMyPendingTask &&
-                                            styles.assigneeNameMyPending,
-                                        ]}
-                                        numberOfLines={1}
-                                      >
-                                        {isAssignedToMe
-                                          ? "Você"
-                                          : assignee.name}
-                                      </Text>
-                                    </View>
-                                  ) : (
-                                    <View style={styles.unassignedPill}>
-                                      <Ionicons
-                                        name="person-add-outline"
-                                        size={12}
-                                        color={colors.accent}
-                                      />
-                                      <Text style={styles.unassignedText}>
-                                        Atribuir
-                                      </Text>
-                                    </View>
-                                  )}
-                                </Pressable>
-                              ) : (
-                                <View style={styles.selectHintIcon}>
-                                  <Ionicons
-                                    name="chevron-forward"
-                                    size={16}
-                                    color={
-                                      isSelectedForDeletion
-                                        ? colors.danger
-                                        : colors.textMuted
-                                    }
-                                  />
-                                </View>
-                              )}
-                            </Pressable>
+                              onToggleDone={() => toggleTaskDone(item.id)}
+                              onAssignPress={() => setAssignModalTask(item)}
+                            />
                           );
                         })}
 
