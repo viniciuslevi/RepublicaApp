@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useMemo, useState, useEffect } from "react";
-import { initialResidents, initialTasks, initialExpenses, initialResidences } from "../data/mock";
+import {
+  initialResidents,
+  initialTasks,
+  initialExpenses,
+  initialResidences,
+  initialShoppingItems,
+} from "../data/mock";
 import {
   checkAndResetRecurringTasks,
   calculateNextDueDate,
@@ -16,6 +22,7 @@ export function AppDataProvider({ children }) {
   const [residents, setResidents] = useState(initialResidents);
   const [tasks, setTasks] = useState(initialTasks);
   const [expenses, setExpenses] = useState(initialExpenses);
+  const [shoppingItems, setShoppingItems] = useState(initialShoppingItems);
 
   // Executa verificação de ciclo de reset de tarefas recorrentes ao carregar o app
   useEffect(() => {
@@ -225,6 +232,14 @@ export function AppDataProvider({ children }) {
     ]);
   }
 
+  function addShoppingItem(name, quantity = "", addedById = null) {
+    const id = `s${Date.now()}`;
+    setShoppingItems((prev) => [
+      { id, name: name.trim(), quantity: (quantity || "").trim(), addedById, purchased: false },
+      ...prev,
+    ]);
+  }
+
   const totalExpenses = useMemo(
     () => expenses.reduce((sum, e) => sum + e.value, 0),
     [expenses]
@@ -274,6 +289,8 @@ export function AppDataProvider({ children }) {
     addExpense,
     totalExpenses,
     balances,
+    shoppingItems,
+    addShoppingItem,
   };
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
