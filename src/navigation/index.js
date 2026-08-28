@@ -20,9 +20,9 @@ const Tab = createBottomTabNavigator();
 
 const TAB_ICONS = {
   Tarefas: "checkbox-outline",
+  Compras: "cart-outline",
   Despesas: "cash-outline",
   Saldos: "pie-chart-outline",
-  Compras: "cart-outline",
 };
 
 function MainTabs() {
@@ -40,9 +40,9 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Tarefas" component={TasksScreen} />
+      <Tab.Screen name="Compras" component={ShoppingListScreen} />
       <Tab.Screen name="Despesas" component={ExpensesScreen} />
       <Tab.Screen name="Saldos" component={SummaryScreen} />
-      <Tab.Screen name="Compras" component={ShoppingListScreen} />
     </Tab.Navigator>
   );
 }
