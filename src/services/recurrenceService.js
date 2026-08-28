@@ -124,6 +124,7 @@ export function checkAndResetRecurringTasks(tasks, now = new Date()) {
 export function createNormalizedTask(taskInput) {
   const now = new Date();
   const recurrence = taskInput.recurrence || "Única";
+  const priority = taskInput.priority || "Média";
 
   return {
     id: taskInput.id || `t_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -131,6 +132,7 @@ export function createNormalizedTask(taskInput) {
     description: (taskInput.description || "").trim(),
     assigneeId: taskInput.assigneeId || null,
     recurrence: recurrence,
+    priority: priority,
     done: false,
     createdAt: now.toISOString(),
     lastCompletedAt: null,

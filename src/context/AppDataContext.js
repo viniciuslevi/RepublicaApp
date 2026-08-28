@@ -117,7 +117,7 @@ export function AppDataProvider({ children }) {
     );
   }
 
-  function addTask(titleOrData, recurrence = "Única", assigneeId = null, description = "") {
+  function addTask(titleOrData, recurrence = "Única", assigneeId = null, description = "", priority = "Média") {
     let newTask;
     if (typeof titleOrData === "object" && titleOrData !== null) {
       newTask = createNormalizedTask(titleOrData);
@@ -127,6 +127,7 @@ export function AppDataProvider({ children }) {
         description,
         assigneeId,
         recurrence,
+        priority,
       });
     }
 
@@ -164,6 +165,10 @@ export function AppDataProvider({ children }) {
               ? updatedData.assigneeId
               : t.assigneeId,
           recurrence: nextRecurrence,
+          priority:
+            updatedData.priority !== undefined
+              ? updatedData.priority
+              : (t.priority || "Média"),
           nextDueDate,
           updatedAt: now.toISOString(),
         };

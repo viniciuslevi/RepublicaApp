@@ -24,19 +24,17 @@ import { useAppData } from "../context/AppDataContext";
 import { useAuth } from "../context/AuthContext";
 
 /**
- * Definição das pastas de recorrência em ordem de prioridade.
- * As tarefas pontuais (sem recorrência) ficam no topo por terem prioridade imediata.
+ * Definição das pastas de recorrência da moradia.
  */
 const FOLDERS = [
   {
     id: "Única",
     label: "Tarefas Pontuais",
-    tag: "Alta Prioridade",
-    description: "Demandas únicas e urgentes da moradia",
+    tag: "Pontual",
+    description: "Demandas únicas e avulsas da moradia",
     icon: "pin",
     accentColor: colors.gold,
     bgColor: colors.goldLight,
-    isPriority: true,
   },
   {
     id: "Diária",
@@ -46,7 +44,6 @@ const FOLDERS = [
     icon: "repeat",
     accentColor: colors.accent,
     bgColor: colors.accentLight,
-    isPriority: false,
   },
   {
     id: "Semanal",
@@ -56,7 +53,6 @@ const FOLDERS = [
     icon: "calendar",
     accentColor: colors.primary,
     bgColor: colors.surface,
-    isPriority: false,
   },
   {
     id: "Mensal",
@@ -66,7 +62,6 @@ const FOLDERS = [
     icon: "calendar-number",
     accentColor: "#3B6E8C",
     bgColor: "#E2EEF5",
-    isPriority: false,
   },
 ];
 
@@ -76,6 +71,55 @@ const RECURRENCE_OPTIONS = [
   { id: "Semanal", label: "Semanal", sub: "Toda semana", icon: "calendar-outline" },
   { id: "Mensal", label: "Mensal", sub: "Todo mês", icon: "calendar-number-outline" },
 ];
+
+/**
+ * Sistema de prioridades atrelado a tarefas com identificação visual por retângulos
+ */
+const PRIORITY_OPTIONS = [
+  {
+    id: "Alta",
+    label: "Alta",
+    sub: "Urgente",
+    icon: "alert-circle",
+    color: "#C0392B",
+    bgColor: "#FDE8E8",
+    lightBg: "#FFF1F1",
+    borderColor: "#E74C3C",
+    tagBorder: "#F8B4B4",
+    dotColor: "#C0392B",
+  },
+  {
+    id: "Média",
+    label: "Média",
+    sub: "Moderada",
+    icon: "remove-circle",
+    color: "#B8860B",
+    bgColor: "#FEF3C7",
+    lightBg: "#FFFBEB",
+    borderColor: "#D97706",
+    tagBorder: "#FDE68A",
+    dotColor: "#B8860B",
+  },
+  {
+    id: "Baixa",
+    label: "Baixa",
+    sub: "Tranquila",
+    icon: "arrow-down-circle",
+    color: "#2D7D54",
+    bgColor: "#E1F5EB",
+    lightBg: "#F0FDF4",
+    borderColor: "#3F9B6E",
+    tagBorder: "#A7F3D0",
+    dotColor: "#2D7D54",
+  },
+];
+
+function getPriorityConfig(priority) {
+  return (
+    PRIORITY_OPTIONS.find((p) => p.id === priority) ||
+    PRIORITY_OPTIONS[1] // Média como padrão
+  );
+}
 
 /**
  * Helper para transições fluidas de layout
@@ -373,6 +417,8 @@ function TaskCardItem({
       }
     : { marginBottom: 10 };
 
+  const priorityConfig = getPriorityConfig(item.priority);
+
   return (
     <Animated.View
       style={collapseContainerStyle}
@@ -429,14 +475,46 @@ function TaskCardItem({
             </Pressable>
           )}
 
-          {/* Conteúdo textual da Tarefa */}
+          {/* Conteúdo textual da Tarefa com Retângulo de Prioridade */}
           <View style={styles.taskTextWrap}>
-            {isMyPendingTask && !isSelectedForDeletion ? (
-              <View style={styles.myTaskNoticeBadge}>
-                <Ionicons name="person" size={10} color={colors.white} />
-                <Text style={styles.myTaskNoticeBadgeText}>SUA VEZ</Text>
+            <View style={styles.taskBadgesRow}>
+              {/* Retângulo de Prioridade */}
+              <View
+                style={[
+                  styles.priorityBadge,
+                  {
+                    backgroundColor: priorityConfig.bgColor,
+                    borderColor: priorityConfig.tagBorder,
+                  },
+                  item.done && styles.priorityBadgeDone,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.priorityDot,
+                    { backgroundColor: priorityConfig.dotColor },
+                    item.done && { opacity: 0.5 },
+                  ]}
+                />
+                <Text
+                  style={[
+                    styles.priorityBadgeText,
+                    { color: priorityConfig.color },
+                    item.done && { opacity: 0.7 },
+                  ]}
+                >
+                  {priorityConfig.label.toUpperCase()}
+                </Text>
               </View>
-            ) : null}
+
+              {/* Destaque "SUA VEZ" para tarefas pendentes do morador atual */}
+              {isMyPendingTask && !isSelectedForDeletion ? (
+                <View style={styles.myTaskNoticeBadge}>
+                  <Ionicons name="person" size={10} color={colors.white} />
+                  <Text style={styles.myTaskNoticeBadgeText}>SUA VEZ</Text>
+                </View>
+              ) : null}
+            </View>
 
             <Text
               style={[
@@ -552,6 +630,7 @@ export default function TasksScreen() {
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formRecurrence, setFormRecurrence] = useState("Única");
+  const [formPriority, setFormPriority] = useState("Média");
   const [formAssigneeId, setFormAssigneeId] = useState(null);
   const [formError, setFormError] = useState("");
 
@@ -592,12 +671,13 @@ export default function TasksScreen() {
   }
 
   // Abre modal para Criar Nova Tarefa
-  function handleOpenCreateModal(defaultRecurrence = "Única") {
+  function handleOpenCreateModal(defaultRecurrence = "Única", defaultPriority = "Média") {
     setModalMode("create");
     setEditingTask(null);
     setFormTitle("");
     setFormDescription("");
     setFormRecurrence(defaultRecurrence || "Única");
+    setFormPriority(defaultPriority || "Média");
     setFormAssigneeId(currentResidentId || null);
     setFormError("");
     setModalVisible(true);
@@ -619,6 +699,7 @@ export default function TasksScreen() {
         ? "Única"
         : task.recurrence
     );
+    setFormPriority(task.priority || "Média");
     setFormAssigneeId(task.assigneeId || null);
     setFormError("");
     setModalVisible(true);
@@ -630,6 +711,7 @@ export default function TasksScreen() {
     setFormTitle("");
     setFormDescription("");
     setFormRecurrence("Única");
+    setFormPriority("Média");
     setFormAssigneeId(null);
     setFormError("");
   }
@@ -649,6 +731,7 @@ export default function TasksScreen() {
         description: formDescription.trim(),
         assigneeId: formAssigneeId,
         recurrence: formRecurrence,
+        priority: formPriority,
       });
 
       // Abre a pasta correspondente para visualizar a tarefa criada
@@ -662,6 +745,7 @@ export default function TasksScreen() {
         description: formDescription.trim(),
         assigneeId: formAssigneeId,
         recurrence: formRecurrence,
+        priority: formPriority,
       });
 
       // Abre a pasta para onde a tarefa foi destinada caso tenha mudado
@@ -729,7 +813,7 @@ export default function TasksScreen() {
     }, 230);
   }
 
-  // Agrupamento de tarefas por pasta de recorrência
+  // Agrupamento e ordenação de tarefas por pasta de recorrência e nível de prioridade (Alta -> Média -> Baixa)
   const tasksByFolder = useMemo(() => {
     const map = {
       Única: [],
@@ -749,6 +833,27 @@ export default function TasksScreen() {
       } else {
         map.Única.push(task);
       }
+    });
+
+    const priorityWeight = { Alta: 1, Média: 2, Baixa: 3 };
+
+    // Ordenação em cada pasta:
+    // 1. Tarefas Pendentes primeiro (ordenadas de Alta -> Média -> Baixa)
+    // 2. Tarefas Concluídas ao final (também ordenadas de Alta -> Média -> Baixa)
+    Object.keys(map).forEach((key) => {
+      map[key].sort((a, b) => {
+        if (a.done !== b.done) {
+          return a.done ? 1 : -1;
+        }
+
+        const pA = priorityWeight[a.priority] || 2;
+        const pB = priorityWeight[b.priority] || 2;
+        if (pA !== pB) {
+          return pA - pB;
+        }
+
+        return (b.id || "").localeCompare(a.id || "");
+      });
     });
 
     return map;
@@ -868,7 +973,6 @@ export default function TasksScreen() {
                 key={folder.id}
                 style={[
                   styles.folderCard,
-                  folder.isPriority && styles.folderCardPriority,
                   myPendingInThisFolder > 0 && styles.folderCardWithMyTasks,
                 ]}
               >
@@ -907,20 +1011,10 @@ export default function TasksScreen() {
                     <View style={styles.folderTitleRow}>
                       <Text style={styles.folderTitle}>{folder.label}</Text>
 
-                      {/* Tag de Prioridade / Tipo */}
+                      {/* Tag de Recorrência / Tipo */}
                       {folder.tag ? (
-                        <View
-                          style={[
-                            styles.folderTag,
-                            folder.isPriority && styles.folderTagPriority,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.folderTagText,
-                              folder.isPriority && styles.folderTagTextPriority,
-                            ]}
-                          >
+                        <View style={styles.folderTag}>
+                          <Text style={styles.folderTagText}>
                             {folder.tag}
                           </Text>
                         </View>
@@ -1239,14 +1333,7 @@ export default function TasksScreen() {
 
                 {/* Campo: Recorrência */}
                 <View style={styles.fieldGroup}>
-                  <View style={styles.fieldHeaderRow}>
-                    <Text style={styles.fieldLabel}>Recorrência / Pasta</Text>
-                    {formRecurrence === "Única" ? (
-                      <Text style={styles.priorityHint}>
-                        ⚡ Ficará no topo (Alta prioridade)
-                      </Text>
-                    ) : null}
-                  </View>
+                  <Text style={styles.fieldLabel}>Recorrência / Pasta</Text>
                   <View style={styles.recurrenceGrid}>
                     {RECURRENCE_OPTIONS.map((opt) => {
                       const isSelected = formRecurrence === opt.id;
@@ -1256,9 +1343,6 @@ export default function TasksScreen() {
                           style={[
                             styles.recurrenceCard,
                             isSelected && styles.recurrenceCardActive,
-                            opt.id === "Única" &&
-                              isSelected &&
-                              styles.recurrenceCardPriorityActive,
                           ]}
                           onPress={() => setFormRecurrence(opt.id)}
                         >
@@ -1267,9 +1351,7 @@ export default function TasksScreen() {
                             size={18}
                             color={
                               isSelected
-                                ? opt.id === "Única"
-                                  ? colors.gold
-                                  : colors.primary
+                                ? colors.primary
                                 : colors.textMuted
                             }
                           />
@@ -1286,6 +1368,60 @@ export default function TasksScreen() {
                               {opt.sub}
                             </Text>
                           </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* Campo: Prioridade com identificação em retângulos coloridos */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>Prioridade da tarefa</Text>
+                  <View style={styles.priorityGrid}>
+                    {PRIORITY_OPTIONS.map((opt) => {
+                      const isSelected = formPriority === opt.id;
+                      return (
+                        <Pressable
+                          key={opt.id}
+                          style={[
+                            styles.priorityOptionCard,
+                            isSelected && {
+                              backgroundColor: opt.lightBg,
+                              borderColor: opt.borderColor,
+                              borderWidth: 2,
+                            },
+                          ]}
+                          onPress={() => setFormPriority(opt.id)}
+                        >
+                          <View
+                            style={[
+                              styles.priorityOptionDot,
+                              { backgroundColor: opt.color },
+                            ]}
+                          />
+                          <View style={styles.priorityOptionContent}>
+                            <Text
+                              style={[
+                                styles.priorityOptionLabel,
+                                isSelected && {
+                                  color: opt.color,
+                                  fontWeight: "800",
+                                },
+                              ]}
+                            >
+                              {opt.label}
+                            </Text>
+                            <Text style={styles.priorityOptionSub}>
+                              {opt.sub}
+                            </Text>
+                          </View>
+                          {isSelected ? (
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={16}
+                              color={opt.color}
+                            />
+                          ) : null}
                         </Pressable>
                       );
                     })}
@@ -1582,9 +1718,6 @@ const styles = StyleSheet.create({
     elevation: 2,
     overflow: "hidden",
   },
-  folderCardPriority: {
-    borderColor: "rgba(184, 134, 11, 0.4)",
-  },
   folderCardWithMyTasks: {
     borderColor: "rgba(63, 155, 110, 0.5)",
   },
@@ -1649,17 +1782,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     borderRadius: 6,
   },
-  folderTagPriority: {
-    backgroundColor: colors.goldLight,
-  },
   folderTagText: {
     fontSize: 10,
     fontWeight: "700",
     color: colors.textMuted,
     textTransform: "uppercase",
-  },
-  folderTagTextPriority: {
-    color: colors.gold,
   },
   myTasksPill: {
     backgroundColor: colors.accentLight,
@@ -1807,15 +1934,43 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  taskBadgesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 5,
+  },
+  priorityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 2.5,
+    paddingHorizontal: 7,
+    borderRadius: 6,
+    borderWidth: 1,
+    gap: 4,
+  },
+  priorityBadgeDone: {
+    opacity: 0.75,
+  },
+  priorityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  priorityBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+  },
   myTaskNoticeBadge: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
     backgroundColor: colors.accent,
-    paddingVertical: 2,
+    paddingVertical: 2.5,
     paddingHorizontal: 6,
     borderRadius: 6,
-    marginBottom: 4,
     gap: 4,
   },
   myTaskNoticeBadgeText: {
@@ -2003,11 +2158,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     marginBottom: 8,
   },
-  priorityHint: {
-    fontSize: 11,
-    color: colors.gold,
-    fontWeight: "700",
-  },
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",
@@ -2055,10 +2205,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentLight,
     borderColor: colors.accent,
   },
-  recurrenceCardPriorityActive: {
-    backgroundColor: colors.goldLight,
-    borderColor: colors.gold,
-  },
   recurrenceCardLabel: {
     fontSize: 13,
     color: colors.textDark,
@@ -2069,6 +2215,40 @@ const styles = StyleSheet.create({
   },
   recurrenceCardSub: {
     fontSize: 10.5,
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  priorityGrid: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  priorityOptionCard: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  priorityOptionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 7,
+  },
+  priorityOptionContent: {
+    flex: 1,
+  },
+  priorityOptionLabel: {
+    fontSize: 12.5,
+    color: colors.textDark,
+    fontWeight: "700",
+  },
+  priorityOptionSub: {
+    fontSize: 10,
     color: colors.textMuted,
     marginTop: 1,
   },
