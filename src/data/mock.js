@@ -40,9 +40,9 @@ export const initialTasks = [
 ];
 
 export const initialExpenses = [
-  { id: "e1", description: "Conta de luz", value: 210.5, payerId: "1" },
-  { id: "e2", description: "Mercado da semana", value: 180.0, payerId: "2" },
-  { id: "e3", description: "Internet", value: 120.0, payerId: "3" },
+  { id: "e1", description: "Conta de luz", value: 210.5, payerId: "1", participantIds: ["1", "2", "3"] },
+  { id: "e2", description: "Mercado da semana", value: 180.0, payerId: "2", participantIds: ["1", "2", "3"] },
+  { id: "e3", description: "Internet", value: 120.0, payerId: "3", participantIds: ["1", "2", "3"] },
 ];
 
 

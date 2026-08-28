@@ -213,9 +213,16 @@ export function AppDataProvider({ children }) {
     });
   }
 
-  function addExpense(description, value, payerId) {
+  function addExpense(description, value, payerId, participantIds = null) {
     const id = `e${Date.now()}`;
-    setExpenses((prev) => [{ id, description, value, payerId }, ...prev]);
+    const cleanParticipantIds =
+      participantIds && participantIds.length > 0
+        ? participantIds
+        : residents.map((r) => r.id);
+    setExpenses((prev) => [
+      { id, description, value, payerId, participantIds: cleanParticipantIds },
+      ...prev,
+    ]);
   }
 
   const totalExpenses = useMemo(
@@ -225,11 +232,20 @@ export function AppDataProvider({ children }) {
 
   const balances = useMemo(() => {
     if (residents.length === 0) return [];
-    const share = totalExpenses / residents.length;
+    const allResidentIds = residents.map((r) => r.id);
+
     return residents.map((r) => {
       const paid = expenses
         .filter((e) => e.payerId === r.id)
         .reduce((sum, e) => sum + e.value, 0);
+
+      const share = expenses.reduce((sum, e) => {
+        const participantIds =
+          e.participantIds && e.participantIds.length > 0 ? e.participantIds : allResidentIds;
+        if (!participantIds.includes(r.id)) return sum;
+        return sum + e.value / participantIds.length;
+      }, 0);
+
       return { resident: r, paid, share, balance: paid - share };
     });
   }, [residents, expenses, totalExpenses]);
