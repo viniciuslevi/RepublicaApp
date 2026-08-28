@@ -1,5 +1,10 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, useState, useEffect } from "react";
 import { initialResidents, initialTasks, initialExpenses, initialResidences } from "../data/mock";
+import {
+  checkAndResetRecurringTasks,
+  calculateNextDueDate,
+  createNormalizedTask,
+} from "../services/recurrenceService";
 
 const AppDataContext = createContext(null);
 
@@ -11,6 +16,14 @@ export function AppDataProvider({ children }) {
   const [residents, setResidents] = useState(initialResidents);
   const [tasks, setTasks] = useState(initialTasks);
   const [expenses, setExpenses] = useState(initialExpenses);
+
+  // Executa verificação de ciclo de reset de tarefas recorrentes ao carregar o app
+  useEffect(() => {
+    setTasks((prevTasks) => {
+      const { tasks: resetTasks, resetCount } = checkAndResetRecurringTasks(prevTasks);
+      return resetCount > 0 ? resetTasks : prevTasks;
+    });
+  }, []);
 
   const residentById = useMemo(() => {
     const map = {};
@@ -79,8 +92,22 @@ export function AppDataProvider({ children }) {
   }
 
   function toggleTaskDone(taskId) {
+    const now = new Date();
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t))
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+
+        const nextDone = !t.done;
+        return {
+          ...t,
+          done: nextDone,
+          lastCompletedAt: nextDone ? now.toISOString() : null,
+          nextDueDate:
+            nextDone && t.recurrence && t.recurrence !== "Única"
+              ? calculateNextDueDate(t.recurrence, now)
+              : t.nextDueDate || null,
+        };
+      })
     );
   }
 
@@ -90,12 +117,83 @@ export function AppDataProvider({ children }) {
     );
   }
 
-  function addTask(title, recurrence) {
-    const id = `t${Date.now()}`;
-    setTasks((prev) => [
-      { id, title, assigneeId: null, recurrence: recurrence || "Sem recorrência", done: false },
-      ...prev,
-    ]);
+  function addTask(titleOrData, recurrence = "Única", assigneeId = null, description = "", priority = "Média") {
+    let newTask;
+    if (typeof titleOrData === "object" && titleOrData !== null) {
+      newTask = createNormalizedTask(titleOrData);
+    } else {
+      newTask = createNormalizedTask({
+        title: titleOrData,
+        description,
+        assigneeId,
+        recurrence,
+        priority,
+      });
+    }
+
+    setTasks((prev) => [newTask, ...prev]);
+    return newTask.id;
+  }
+
+  function updateTask(taskId, updatedData) {
+    const now = new Date();
+    let updatedTaskResult = null;
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+
+        const recurrenceChanged =
+          updatedData.recurrence && updatedData.recurrence !== t.recurrence;
+        const nextRecurrence = updatedData.recurrence || t.recurrence;
+        const nextDueDate = recurrenceChanged
+          ? nextRecurrence !== "Única"
+            ? calculateNextDueDate(nextRecurrence, now)
+            : null
+          : t.nextDueDate;
+
+        updatedTaskResult = {
+          ...t,
+          ...updatedData,
+          title:
+            updatedData.title !== undefined ? updatedData.title.trim() : t.title,
+          description:
+            updatedData.description !== undefined
+              ? updatedData.description.trim()
+              : t.description,
+          assigneeId:
+            updatedData.assigneeId !== undefined
+              ? updatedData.assigneeId
+              : t.assigneeId,
+          recurrence: nextRecurrence,
+          priority:
+            updatedData.priority !== undefined
+              ? updatedData.priority
+              : (t.priority || "Média"),
+          nextDueDate,
+          updatedAt: now.toISOString(),
+        };
+        return updatedTaskResult;
+      })
+    );
+    return updatedTaskResult;
+  }
+
+  function deleteTask(taskId) {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    return true;
+  }
+
+  function deleteTasks(taskIds) {
+    const idSet = new Set(taskIds);
+    setTasks((prev) => prev.filter((t) => !idSet.has(t.id)));
+    return true;
+  }
+
+  function resetRecurringTasksNow(referenceDate = new Date()) {
+    setTasks((prevTasks) => {
+      const { tasks: resetTasks } = checkAndResetRecurringTasks(prevTasks, referenceDate);
+      return resetTasks;
+    });
   }
 
   function addExpense(description, value, payerId) {
@@ -134,6 +232,10 @@ export function AppDataProvider({ children }) {
     toggleTaskDone,
     assignTask,
     addTask,
+    updateTask,
+    deleteTask,
+    deleteTasks,
+    resetRecurringTasksNow,
     expenses,
     addExpense,
     totalExpenses,
