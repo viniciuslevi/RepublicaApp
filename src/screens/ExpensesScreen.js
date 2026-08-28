@@ -46,7 +46,7 @@ export default function ExpensesScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <ScreenHeader kicker="EPIC · DESPESAS" title="Despesas do grupo" />
+      <ScreenHeader kicker="DESPESAS" title="Despesas do grupo" />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

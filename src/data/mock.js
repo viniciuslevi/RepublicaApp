@@ -17,10 +17,25 @@ export const initialResidents = [
 ];
 
 export const initialTasks = [
-  { id: "t1", title: "Lavar a louça", assigneeId: "1", recurrence: "Diária", done: false },
-  { id: "t2", title: "Tirar o lixo", assigneeId: "2", recurrence: "Semanal", done: true },
-  { id: "t3", title: "Limpar o banheiro", assigneeId: null, recurrence: "Semanal", done: false },
-  { id: "t4", title: "Comprar produtos de limpeza", assigneeId: "3", recurrence: "Mensal", done: false },
+  // Tarefas Únicas / Pontuais (Sem recorrência - Alta Prioridade)
+  { id: "t0_1", title: "Trocar resistência do chuveiro", description: "Chuveiro do banheiro social queimou, comprar e trocar", assigneeId: "2", recurrence: "Única", done: false },
+  { id: "t0_2", title: "Fazer cópia da chave do portão", description: "Levar ao chaveiro da esquina para fazer cópia reserva", assigneeId: "1", recurrence: "Única", done: false },
+  { id: "t0_3", title: "Montar mesa nova de estudos", description: "Montar a escrivaninha que chegou para a sala", assigneeId: null, recurrence: "Única", done: true },
+
+  // Tarefas Diárias
+  { id: "t1_1", title: "Lavar a louça do dia", description: "Lavar e secar a louça acumulada na pia", assigneeId: "1", recurrence: "Diária", done: false },
+  { id: "t1_2", title: "Tirar lixo da cozinha e banheiro", description: "Trocar sacos de lixo e fechar bem", assigneeId: "3", recurrence: "Diária", done: false },
+  { id: "t1_3", title: "Recolher correspondências", description: "Verificar boletos e entregas na portaria/caixa de correio", assigneeId: "2", recurrence: "Diária", done: true },
+
+  // Tarefas Semanais
+  { id: "t2_1", title: "Limpar o banheiro completo", description: "Higienizar vaso sanitário, box de vidro e repor toalhas", assigneeId: null, recurrence: "Semanal", done: false },
+  { id: "t2_2", title: "Colocar lixo reciclável na rua", description: "Coleta seletiva passa toda quarta-feira de manhã", assigneeId: "2", recurrence: "Semanal", done: true },
+  { id: "t2_3", title: "Varrer e passar pano nas áreas comuns", description: "Limpeza geral da sala, corredor e cozinha", assigneeId: "1", recurrence: "Semanal", done: false },
+
+  // Tarefas Mensais
+  { id: "t3_1", title: "Comprar produtos de limpeza e mantimentos", description: "Detergentes, sacos de lixo, papel higiênico e desinfetante", assigneeId: "3", recurrence: "Mensal", done: false },
+  { id: "t3_2", title: "Limpeza profunda da geladeira", description: "Descartar recipientes velhos e lavar prateleiras", assigneeId: "2", recurrence: "Mensal", done: false },
+  { id: "t3_3", title: "Checar botijão de gás e filtros", description: "Verificar se precisa pedir gás reserva ou trocar refil do filtro", assigneeId: null, recurrence: "Mensal", done: true },
 ];
 
 export const initialExpenses = [
