@@ -240,6 +240,14 @@ export function AppDataProvider({ children }) {
     ]);
   }
 
+  function toggleShoppingItemPurchased(itemId) {
+    setShoppingItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, purchased: !item.purchased } : item
+      )
+    );
+  }
+
   const totalExpenses = useMemo(
     () => expenses.reduce((sum, e) => sum + e.value, 0),
     [expenses]
@@ -291,6 +299,7 @@ export function AppDataProvider({ children }) {
     balances,
     shoppingItems,
     addShoppingItem,
+    toggleShoppingItemPurchased,
   };
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;

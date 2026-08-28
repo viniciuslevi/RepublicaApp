@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TextInput,
+  Pressable,
   FlatList,
   StyleSheet,
   KeyboardAvoidingView,
@@ -17,9 +18,56 @@ import { colors } from "../theme/colors";
 import { useAppData } from "../context/AppDataContext";
 import { useAuth } from "../context/AuthContext";
 
+function ShoppingItemCard({ item, addedBy, onToggle }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.itemCard,
+        item.purchased && styles.itemCardPurchased,
+        pressed && { opacity: 0.85 },
+      ]}
+      onPress={onToggle}
+    >
+      <View
+        style={[styles.checkbox, item.purchased && styles.checkboxPurchased]}
+      >
+        {item.purchased ? (
+          <Ionicons name="checkmark" size={15} color={colors.white} />
+        ) : null}
+      </View>
+      <View style={styles.itemIconWrap}>
+        <Ionicons
+          name={item.purchased ? "cart" : "cart-outline"}
+          size={18}
+          color={item.purchased ? colors.textMuted : colors.accent}
+        />
+      </View>
+      <View style={styles.itemBody}>
+        <Text style={[styles.itemName, item.purchased && styles.itemNameDone]}>
+          {item.name}
+        </Text>
+        <Text style={styles.itemMeta}>
+          {addedBy ? `Adicionado por ${addedBy.name}` : "Adicionado por alguém da casa"}
+        </Text>
+      </View>
+      {item.quantity ? (
+        <View style={[styles.quantityBadge, item.purchased && styles.quantityBadgeDone]}>
+          <Text style={styles.quantityBadgeText}>{item.quantity}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
 export default function ShoppingListScreen() {
   const { user } = useAuth();
-  const { shoppingItems, residents, residentById, addShoppingItem } = useAppData();
+  const {
+    shoppingItems,
+    residents,
+    residentById,
+    addShoppingItem,
+    toggleShoppingItemPurchased,
+  } = useAppData();
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [error, setError] = useState("");
@@ -37,6 +85,10 @@ export default function ShoppingListScreen() {
 
   const pendingItems = useMemo(
     () => shoppingItems.filter((item) => !item.purchased),
+    [shoppingItems]
+  );
+  const purchasedItems = useMemo(
+    () => shoppingItems.filter((item) => item.purchased),
     [shoppingItems]
   );
 
@@ -89,29 +141,30 @@ export default function ShoppingListScreen() {
               <Text style={styles.sectionTitle}>Itens pendentes</Text>
             </View>
           }
-          renderItem={({ item }) => {
-            const addedBy = item.addedById ? residentById[item.addedById] : null;
-            return (
-              <View style={styles.itemCard}>
-                <View style={styles.itemIconWrap}>
-                  <Ionicons name="cart-outline" size={18} color={colors.accent} />
-                </View>
-                <View style={styles.itemBody}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.itemMeta}>
-                    {addedBy ? `Adicionado por ${addedBy.name}` : "Adicionado por alguém da casa"}
-                  </Text>
-                </View>
-                {item.quantity ? (
-                  <View style={styles.quantityBadge}>
-                    <Text style={styles.quantityBadgeText}>{item.quantity}</Text>
-                  </View>
-                ) : null}
-              </View>
-            );
-          }}
+          renderItem={({ item }) => (
+            <ShoppingItemCard
+              item={item}
+              addedBy={item.addedById ? residentById[item.addedById] : null}
+              onToggle={() => toggleShoppingItemPurchased(item.id)}
+            />
+          )}
           ListEmptyComponent={
             <Text style={styles.empty}>Nenhum item pendente na lista de compras.</Text>
+          }
+          ListFooterComponent={
+            purchasedItems.length > 0 ? (
+              <View style={styles.purchasedSection}>
+                <Text style={styles.sectionTitle}>Comprados</Text>
+                {purchasedItems.map((item) => (
+                  <ShoppingItemCard
+                    key={item.id}
+                    item={item}
+                    addedBy={item.addedById ? residentById[item.addedById] : null}
+                    onToggle={() => toggleShoppingItemPurchased(item.id)}
+                  />
+                ))}
+              </View>
+            ) : null
           }
         />
       </KeyboardAvoidingView>
@@ -150,6 +203,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   empty: { textAlign: "center", color: colors.textMuted, marginTop: 20 },
+  purchasedSection: { marginTop: 8 },
   itemCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -163,6 +217,24 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
   },
+  itemCardPurchased: {
+    backgroundColor: "#F4F7F5",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  checkboxPurchased: {
+    backgroundColor: colors.accent,
+  },
   itemIconWrap: {
     width: 36,
     height: 36,
@@ -174,6 +246,10 @@ const styles = StyleSheet.create({
   },
   itemBody: { flex: 1 },
   itemName: { fontSize: 15, fontWeight: "700", color: colors.textDark },
+  itemNameDone: {
+    textDecorationLine: "line-through",
+    color: colors.textMuted,
+  },
   itemMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
   quantityBadge: {
     backgroundColor: colors.surface,
@@ -182,5 +258,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginLeft: 8,
   },
+  quantityBadgeDone: { opacity: 0.7 },
   quantityBadgeText: { fontSize: 12, fontWeight: "700", color: colors.primary },
 });
