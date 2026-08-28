@@ -12,6 +12,7 @@ import ExpensesScreen from "../screens/ExpensesScreen";
 import SummaryScreen from "../screens/SummaryScreen";
 import MembersScreen from "../screens/MembersScreen";
 import UpcomingOccurrencesScreen from "../screens/UpcomingOccurrencesScreen";
+import ShoppingListScreen from "../screens/ShoppingListScreen";
 import { colors } from "../theme/colors";
 
 const Stack = createNativeStackNavigator();
@@ -21,6 +22,7 @@ const TAB_ICONS = {
   Tarefas: "checkbox-outline",
   Despesas: "cash-outline",
   Saldos: "pie-chart-outline",
+  Compras: "cart-outline",
 };
 
 function MainTabs() {
@@ -40,6 +42,7 @@ function MainTabs() {
       <Tab.Screen name="Tarefas" component={TasksScreen} />
       <Tab.Screen name="Despesas" component={ExpensesScreen} />
       <Tab.Screen name="Saldos" component={SummaryScreen} />
+      <Tab.Screen name="Compras" component={ShoppingListScreen} />
     </Tab.Navigator>
   );
 }

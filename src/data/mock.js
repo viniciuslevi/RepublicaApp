@@ -39,6 +39,12 @@ export const initialTasks = [
   { id: "t3_3", title: "Checar botijão de gás e filtros", description: "Verificar se precisa pedir gás reserva ou trocar refil do filtro", assigneeId: null, recurrence: "Mensal", priority: "Baixa", done: true },
 ];
 
+export const initialShoppingItems = [
+  { id: "s1", name: "Detergente", quantity: "2", addedById: "1", purchased: false },
+  { id: "s2", name: "Papel higiênico", quantity: "1 pacote", addedById: "3", purchased: false },
+  { id: "s3", name: "Café", quantity: "", addedById: "2", purchased: false },
+];
+
 export const initialExpenses = [
   { id: "e1", description: "Conta de luz", value: 210.5, payerId: "1", participantIds: ["1", "2", "3"] },
   { id: "e2", description: "Mercado da semana", value: 180.0, payerId: "2", participantIds: ["1", "2", "3"] },
