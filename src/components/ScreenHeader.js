@@ -29,6 +29,11 @@ export default function ScreenHeader({
     navigation.replace("SelectResidence");
   }
 
+  function handleManageMembers() {
+    setModalVisible(false);
+    navigation.navigate("Members");
+  }
+
   return (
     <View style={styles.wrap}>
       <View style={styles.topRow}>
@@ -96,6 +101,20 @@ export default function ScreenHeader({
             ) : null}
 
             <View style={styles.modalActions}>
+              <Pressable
+                style={styles.menuOption}
+                onPress={handleManageMembers}
+              >
+                <View style={styles.menuIconWrap}>
+                  <Ionicons name="people" size={20} color={colors.primary} />
+                </View>
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuTitle}>Gerenciar Moradores</Text>
+                  <Text style={styles.menuSub}>Ver ou remover moradores da república</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </Pressable>
+
               <Pressable
                 style={styles.menuOption}
                 onPress={handleSwitchResidence}

@@ -7,6 +7,7 @@ export const initialResidences = [
     address: "Rua Universitária, 120",
     description: "Moradia compartilhada padrão do app",
     members: ["Ana", "Bruno", "Carla"],
+    adminId: "1",
   },
 ];
 
