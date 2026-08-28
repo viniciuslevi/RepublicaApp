@@ -11,6 +11,7 @@ import {
   Platform,
   Animated,
   LayoutAnimation,
+  Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -77,18 +78,194 @@ const RECURRENCE_OPTIONS = [
 ];
 
 /**
- * Helper para transição suave de layout sem disparar warnings no Android/iOS
+ * Helper para transições fluidas de layout
  */
 function triggerSmoothLayoutAnimation() {
   try {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   } catch (e) {
-    // Silencia qualquer exceção de layout animation se não suportado no ambiente
+    // Ignora silenciosamente se o ambiente não possuir suporte
   }
 }
 
 /**
- * Card individual de tarefa com micro-animação muito sutil e elegante
+ * Barra superior animada que desce fluidamente do header ao entrar em modo de seleção
+ */
+function AnimatedSelectionBar({
+  visible,
+  count,
+  onDelete,
+  onCancel,
+}) {
+  const [mounted, setMounted] = useState(visible);
+  const slideAnim = useRef(new Animated.Value(visible ? 0 : -50)).current;
+  const opacityAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 190,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 190,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: -50,
+          duration: 160,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: 160,
+          useNativeDriver: true,
+        }),
+      ]).start(() => setMounted(false));
+    }
+  }, [visible]);
+
+  if (!mounted && !visible) return null;
+
+  return (
+    <Animated.View
+      style={[
+        styles.selectionBar,
+        {
+          opacity: opacityAnim,
+          transform: [{ translateY: slideAnim }],
+        },
+      ]}
+    >
+      <View style={styles.selectionInfo}>
+        <View style={styles.selectionBadge}>
+          <Text style={styles.selectionBadgeText}>{count}</Text>
+        </View>
+        <Text style={styles.selectionText}>
+          {count === 1 ? "1 tarefa selecionada" : `${count} tarefas selecionadas`}
+        </Text>
+      </View>
+
+      <View style={styles.selectionActions}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.deleteSelectedBtn,
+            pressed && { opacity: 0.8 },
+          ]}
+          onPress={onDelete}
+        >
+          <Ionicons name="trash" size={16} color={colors.white} />
+          <Text style={styles.deleteSelectedText}>Excluir</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.cancelSelectionBtn,
+            pressed && { opacity: 0.8 },
+          ]}
+          onPress={onCancel}
+        >
+          <Ionicons name="close" size={20} color={colors.white} />
+        </Pressable>
+      </View>
+    </Animated.View>
+  );
+}
+
+/**
+ * Botão Flutuante (FAB) com animação suave de escala, rotação e opacidade (estilo Material/iOS)
+ */
+function AnimatedFAB({ visible, onPress }) {
+  const scaleAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  const opacityAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
+  const rotateAnim = useRef(new Animated.Value(visible ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 6,
+          tension: 85,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 1,
+          duration: 180,
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 200,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(scaleAnim, {
+          toValue: 0,
+          duration: 160,
+          easing: Easing.in(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacityAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: 0,
+          duration: 160,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const animatedStyle = {
+    opacity: opacityAnim,
+    transform: [
+      { scale: scaleAnim },
+      {
+        rotate: rotateAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: ["-45deg", "0deg"],
+        }),
+      },
+    ],
+  };
+
+  return (
+    <Animated.View
+      style={[styles.fabContainer, animatedStyle]}
+      pointerEvents={visible ? "auto" : "none"}
+    >
+      <Pressable
+        style={({ pressed }) => [
+          styles.fab,
+          pressed && { transform: [{ scale: 0.92 }], opacity: 0.9 },
+        ]}
+        onPress={onPress}
+        hitSlop={8}
+      >
+        <Ionicons name="add" size={30} color={colors.white} />
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+/**
+ * Card individual de tarefa com micro-tremor sutil e colapso de altura fluido ao ser removido
  */
 function TaskCardItem({
   item,
@@ -106,8 +283,10 @@ function TaskCardItem({
   const microShakeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const heightProgress = useRef(new Animated.Value(1)).current;
+  const measuredHeight = useRef(null);
 
-  // Micro-tremor super leve (apenas um sutil detalhe estético) quando selecionado
+  // Micro-tremor super sutil quando selecionado
   useEffect(() => {
     if (isSelectedForDeletion) {
       const shakeLoop = Animated.loop(
@@ -137,7 +316,7 @@ function TaskCardItem({
     }
   }, [isSelectedForDeletion]);
 
-  // Transição suave e delicada no momento da exclusão
+  // Transição fluida de desvanecimento e colapso vertical suave na exclusão
   useEffect(() => {
     if (isDeleting) {
       Animated.parallel([
@@ -151,11 +330,17 @@ function TaskCardItem({
           duration: 180,
           useNativeDriver: true,
         }),
+        Animated.timing(heightProgress, {
+          toValue: 0,
+          duration: 220,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: false,
+        }),
       ]).start();
     }
   }, [isDeleting]);
 
-  const animatedStyle = {
+  const animatedTransformStyle = {
     opacity: fadeAnim,
     transform: [
       { scale: scaleAnim },
@@ -174,135 +359,158 @@ function TaskCardItem({
     ],
   };
 
+  const collapseContainerStyle = measuredHeight.current
+    ? {
+        height: heightProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, measuredHeight.current],
+        }),
+        marginBottom: heightProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 10],
+        }),
+        overflow: "hidden",
+      }
+    : { marginBottom: 10 };
+
   return (
-    <Animated.View style={animatedStyle}>
-      <Pressable
-        style={({ pressed }) => [
-          styles.taskItem,
-          isMyPendingTask && styles.taskItemMyPending,
-          isSelectedForDeletion && styles.taskItemSelectedForDeletion,
-          item.done && styles.taskItemDone,
-          pressed && { opacity: 0.9 },
-        ]}
-        onPress={onPress}
-        onLongPress={onLongPress}
-        delayLongPress={300}
-      >
-        {/* Checkbox de Seleção no Modo de Exclusão OU Conclusão */}
-        {isSelectionMode ? (
-          <View
-            style={[
-              styles.selectionCircle,
-              isSelectedForDeletion && styles.selectionCircleActive,
-            ]}
-          >
-            {isSelectedForDeletion ? (
-              <Ionicons name="trash" size={13} color={colors.white} />
-            ) : (
-              <View style={styles.selectionCircleEmpty} />
-            )}
-          </View>
-        ) : (
-          <Pressable
-            onPress={onToggleDone}
-            style={styles.checkWrap}
-            hitSlop={8}
-          >
+    <Animated.View
+      style={collapseContainerStyle}
+      onLayout={(e) => {
+        if (!measuredHeight.current && e.nativeEvent.layout.height > 0) {
+          measuredHeight.current = e.nativeEvent.layout.height;
+        }
+      }}
+    >
+      <Animated.View style={animatedTransformStyle}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.taskItem,
+            isMyPendingTask && styles.taskItemMyPending,
+            isSelectedForDeletion && styles.taskItemSelectedForDeletion,
+            item.done && styles.taskItemDone,
+            pressed && { opacity: 0.9 },
+          ]}
+          onPress={onPress}
+          onLongPress={onLongPress}
+          delayLongPress={300}
+        >
+          {/* Checkbox de Seleção no Modo de Exclusão OU Conclusão */}
+          {isSelectionMode ? (
             <View
               style={[
-                styles.checkbox,
-                isMyPendingTask && styles.checkboxMyPending,
-                item.done && styles.checkboxDone,
+                styles.selectionCircle,
+                isSelectedForDeletion && styles.selectionCircleActive,
               ]}
             >
-              {item.done ? (
-                <Ionicons name="checkmark" size={15} color={colors.white} />
-              ) : null}
+              {isSelectedForDeletion ? (
+                <Ionicons name="trash" size={13} color={colors.white} />
+              ) : (
+                <View style={styles.selectionCircleEmpty} />
+              )}
             </View>
-          </Pressable>
-        )}
-
-        {/* Conteúdo textual da Tarefa */}
-        <View style={styles.taskTextWrap}>
-          {isMyPendingTask && !isSelectedForDeletion ? (
-            <View style={styles.myTaskNoticeBadge}>
-              <Ionicons name="person" size={10} color={colors.white} />
-              <Text style={styles.myTaskNoticeBadgeText}>SUA VEZ</Text>
-            </View>
-          ) : null}
-
-          <Text
-            style={[
-              styles.taskTitle,
-              isMyPendingTask && styles.taskTitleMyPending,
-              isSelectedForDeletion && styles.taskTitleSelected,
-              item.done && styles.taskTitleDone,
-            ]}
-          >
-            {item.title}
-          </Text>
-
-          {item.description ? (
-            <Text
-              style={[styles.taskDesc, item.done && styles.taskDescDone]}
-              numberOfLines={2}
+          ) : (
+            <Pressable
+              onPress={onToggleDone}
+              style={styles.checkWrap}
+              hitSlop={8}
             >
-              {item.description}
-            </Text>
-          ) : null}
-        </View>
-
-        {/* Atribuição de Responsável */}
-        {!isSelectionMode ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.assignBtn,
-              pressed && { opacity: 0.75 },
-            ]}
-            onPress={onAssignPress}
-            hitSlop={6}
-          >
-            {assignee ? (
               <View
                 style={[
-                  styles.assigneePill,
-                  isMyPendingTask && styles.assigneePillMyPending,
+                  styles.checkbox,
+                  isMyPendingTask && styles.checkboxMyPending,
+                  item.done && styles.checkboxDone,
                 ]}
               >
-                <Avatar name={assignee.name} size={22} />
-                <Text
-                  style={[
-                    styles.assigneeName,
-                    isMyPendingTask && styles.assigneeNameMyPending,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {isAssignedToMe ? "Você" : assignee.name}
-                </Text>
+                {item.done ? (
+                  <Ionicons name="checkmark" size={15} color={colors.white} />
+                ) : null}
               </View>
-            ) : (
-              <View style={styles.unassignedPill}>
-                <Ionicons
-                  name="person-add-outline"
-                  size={12}
-                  color={colors.accent}
-                />
-                <Text style={styles.unassignedText}>Atribuir</Text>
+            </Pressable>
+          )}
+
+          {/* Conteúdo textual da Tarefa */}
+          <View style={styles.taskTextWrap}>
+            {isMyPendingTask && !isSelectedForDeletion ? (
+              <View style={styles.myTaskNoticeBadge}>
+                <Ionicons name="person" size={10} color={colors.white} />
+                <Text style={styles.myTaskNoticeBadgeText}>SUA VEZ</Text>
               </View>
-            )}
-          </Pressable>
-        ) : (
-          <View style={styles.selectHintIcon}>
-            <Ionicons
-              name="chevron-forward"
-              size={16}
-              color={
-                isSelectedForDeletion ? colors.danger : colors.textMuted
-              }
-            />
+            ) : null}
+
+            <Text
+              style={[
+                styles.taskTitle,
+                isMyPendingTask && styles.taskTitleMyPending,
+                isSelectedForDeletion && styles.taskTitleSelected,
+                item.done && styles.taskTitleDone,
+              ]}
+            >
+              {item.title}
+            </Text>
+
+            {item.description ? (
+              <Text
+                style={[styles.taskDesc, item.done && styles.taskDescDone]}
+                numberOfLines={2}
+              >
+                {item.description}
+              </Text>
+            ) : null}
           </View>
-        )}
-      </Pressable>
+
+          {/* Atribuição de Responsável */}
+          {!isSelectionMode ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.assignBtn,
+                pressed && { opacity: 0.75 },
+              ]}
+              onPress={onAssignPress}
+              hitSlop={6}
+            >
+              {assignee ? (
+                <View
+                  style={[
+                    styles.assigneePill,
+                    isMyPendingTask && styles.assigneePillMyPending,
+                  ]}
+                >
+                  <Avatar name={assignee.name} size={22} />
+                  <Text
+                    style={[
+                      styles.assigneeName,
+                      isMyPendingTask && styles.assigneeNameMyPending,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {isAssignedToMe ? "Você" : assignee.name}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.unassignedPill}>
+                  <Ionicons
+                    name="person-add-outline"
+                    size={12}
+                    color={colors.accent}
+                  />
+                  <Text style={styles.unassignedText}>Atribuir</Text>
+                </View>
+              )}
+            </Pressable>
+          ) : (
+            <View style={styles.selectHintIcon}>
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={
+                  isSelectedForDeletion ? colors.danger : colors.textMuted
+                }
+              />
+            </View>
+          )}
+        </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -376,6 +584,7 @@ export default function TasksScreen() {
   }, [isFocused]);
 
   function toggleFolder(folderId) {
+    triggerSmoothLayoutAnimation();
     setOpenFolders((prev) => ({
       ...prev,
       [folderId]: !prev[folderId],
@@ -432,6 +641,8 @@ export default function TasksScreen() {
       return;
     }
 
+    triggerSmoothLayoutAnimation();
+
     if (modalMode === "create") {
       addTask({
         title: formTitle.trim(),
@@ -463,21 +674,21 @@ export default function TasksScreen() {
     handleCloseModal();
   }
 
-  // Exclui tarefa individualmente a partir do modal de edição com animação suave
+  // Exclui tarefa individualmente a partir do modal de edição com animação suave e colapso vertical
   function handleDeleteSingleTaskFromModal() {
     if (!editingTask) return;
 
     const idToDelete = editingTask.id;
     handleCloseModal();
 
-    // Engatilha animação suave de transição
+    // Engatilha animação de desvanecimento e colapso de altura
     setDeletingTaskIds([idToDelete]);
 
     setTimeout(() => {
       triggerSmoothLayoutAnimation();
       deleteTask(idToDelete);
       setDeletingTaskIds([]);
-    }, 190);
+    }, 230);
   }
 
   // Ativa seleção com Long Press
@@ -503,7 +714,7 @@ export default function TasksScreen() {
     setSelectedTaskIds([]);
   }
 
-  // Exclui todas as tarefas selecionadas com animação suave
+  // Exclui todas as tarefas selecionadas com transição fluida
   function handleDeleteSelectedTasks() {
     if (selectedTaskIds.length === 0) return;
 
@@ -515,7 +726,7 @@ export default function TasksScreen() {
       deleteTasks(idsToDelete);
       setSelectedTaskIds([]);
       setDeletingTaskIds([]);
-    }, 190);
+    }, 230);
   }
 
   // Agrupamento de tarefas por pasta de recorrência
@@ -582,46 +793,13 @@ export default function TasksScreen() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ScreenHeader kicker="TAREFAS" title="Tarefas da casa" />
 
-      {/* BARRA DE AÇÃO FLUTUANTE DE SELEÇÃO / EXCLUSÃO (Modo Long Press) */}
-      {isSelectionMode ? (
-        <View style={styles.selectionBar}>
-          <View style={styles.selectionInfo}>
-            <View style={styles.selectionBadge}>
-              <Text style={styles.selectionBadgeText}>
-                {selectedTaskIds.length}
-              </Text>
-            </View>
-            <Text style={styles.selectionText}>
-              {selectedTaskIds.length === 1
-                ? "1 tarefa selecionada"
-                : `${selectedTaskIds.length} tarefas selecionadas`}
-            </Text>
-          </View>
-
-          <View style={styles.selectionActions}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.deleteSelectedBtn,
-                pressed && { opacity: 0.8 },
-              ]}
-              onPress={handleDeleteSelectedTasks}
-            >
-              <Ionicons name="trash" size={17} color={colors.white} />
-              <Text style={styles.deleteSelectedText}>Excluir</Text>
-            </Pressable>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.cancelSelectionBtn,
-                pressed && { opacity: 0.8 },
-              ]}
-              onPress={handleCancelSelection}
-            >
-              <Ionicons name="close" size={20} color={colors.white} />
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
+      {/* BARRA DE SELEÇÃO COM ANIMAÇÃO DE SLIDE DESCENDO SUAVEMENTE DO TOPO */}
+      <AnimatedSelectionBar
+        visible={isSelectionMode}
+        count={selectedTaskIds.length}
+        onDelete={handleDeleteSelectedTasks}
+        onCancel={handleCancelSelection}
+      />
 
       <View style={styles.body}>
         <ScrollView
@@ -864,18 +1042,11 @@ export default function TasksScreen() {
           })}
         </ScrollView>
 
-        {/* FAB para abrir modal de criação global */}
-        {!isSelectionMode ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.fab,
-              pressed && { transform: [{ scale: 0.94 }], opacity: 0.9 },
-            ]}
-            onPress={() => handleOpenCreateModal("Única")}
-          >
-            <Ionicons name="add" size={30} color={colors.white} />
-          </Pressable>
-        ) : null}
+        {/* FAB ANIMADO (com escala suave, rotação e opacidade estilo Material/iOS) */}
+        <AnimatedFAB
+          visible={!isSelectionMode}
+          onPress={() => handleOpenCreateModal("Única")}
+        />
       </View>
 
       {/* Modal: Atribuir ou Reatribuir Responsável */}
@@ -1263,16 +1434,22 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100,
   },
-  // Barra Flutuante de Seleção / Exclusão Múltipla
+  // Barra Flutuante de Seleção com Transição Deslizante
   selectionBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#1F2924",
+    backgroundColor: "#1B2A22",
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#33443B",
+    borderBottomColor: "#2F4639",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+    zIndex: 10,
   },
   selectionInfo: {
     flexDirection: "row",
@@ -1511,7 +1688,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAF9",
   },
   tasksListWrap: {
-    gap: 10,
+    // Espaçamento vertical gerenciado individualmente com animação de colapso
   },
   emptyFolderBox: {
     alignItems: "center",
@@ -1739,10 +1916,13 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: "700",
   },
-  fab: {
+  fabContainer: {
     position: "absolute",
     right: 20,
     bottom: 24,
+    zIndex: 20,
+  },
+  fab: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -1750,10 +1930,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     shadowColor: colors.accent,
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.38,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 5,
+    elevation: 6,
   },
   overlay: {
     flex: 1,
