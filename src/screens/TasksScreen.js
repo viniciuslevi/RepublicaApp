@@ -30,7 +30,6 @@ const FOLDERS = [
   {
     id: "Única",
     label: "Tarefas Pontuais",
-    tag: "Pontual",
     description: "Demandas únicas e avulsas da moradia",
     icon: "pin",
     accentColor: colors.gold,
@@ -39,7 +38,6 @@ const FOLDERS = [
   {
     id: "Diária",
     label: "Tarefas Diárias",
-    tag: "Rotina",
     description: "Atividades essenciais do dia a dia",
     icon: "repeat",
     accentColor: colors.accent,
@@ -48,7 +46,6 @@ const FOLDERS = [
   {
     id: "Semanal",
     label: "Tarefas Semanais",
-    tag: "Escala",
     description: "Limpezas e manutenções da semana",
     icon: "calendar",
     accentColor: colors.primary,
@@ -57,7 +54,6 @@ const FOLDERS = [
   {
     id: "Mensal",
     label: "Tarefas Mensais",
-    tag: "Controle",
     description: "Compras e vistorias do mês",
     icon: "calendar-number",
     accentColor: "#3B6E8C",
@@ -1011,15 +1007,6 @@ export default function TasksScreen() {
                     <View style={styles.folderTitleRow}>
                       <Text style={styles.folderTitle}>{folder.label}</Text>
 
-                      {/* Tag de Recorrência / Tipo */}
-                      {folder.tag ? (
-                        <View style={styles.folderTag}>
-                          <Text style={styles.folderTagText}>
-                            {folder.tag}
-                          </Text>
-                        </View>
-                      ) : null}
-
                       {/* Badge Verde de Tarefas do Usuário */}
                       {myPendingInThisFolder > 0 ? (
                         <View style={styles.myTasksPill}>
@@ -1775,18 +1762,6 @@ const styles = StyleSheet.create({
     fontSize: 15.5,
     fontWeight: "800",
     color: colors.primary,
-  },
-  folderTag: {
-    backgroundColor: colors.surface,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 6,
-  },
-  folderTagText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.textMuted,
-    textTransform: "uppercase",
   },
   myTasksPill: {
     backgroundColor: colors.accentLight,
