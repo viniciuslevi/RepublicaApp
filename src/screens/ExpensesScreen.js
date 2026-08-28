@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 import ScreenHeader from "../components/ScreenHeader";
 import Avatar from "../components/Avatar";
@@ -26,7 +27,17 @@ export default function ExpensesScreen() {
   const [description, setDescription] = useState("");
   const [value, setValue] = useState("");
   const [payerId, setPayerId] = useState(residents[0]?.id ?? null);
+  const [participantIds, setParticipantIds] = useState(residents.map((r) => r.id));
   const [error, setError] = useState("");
+
+  function toggleParticipant(residentId) {
+    setParticipantIds((prev) =>
+      prev.includes(residentId)
+        ? prev.filter((id) => id !== residentId)
+        : [...prev, residentId]
+    );
+    if (error) setError("");
+  }
 
   function handleAdd() {
     const numeric = Number(value.replace(",", "."));
@@ -38,9 +49,14 @@ export default function ExpensesScreen() {
       setError("Informe um valor numérico maior que zero.");
       return;
     }
-    addExpense(description.trim(), numeric, payerId);
+    if (participantIds.length === 0) {
+      setError("Selecione ao menos um participante da divisão.");
+      return;
+    }
+    addExpense(description.trim(), numeric, payerId, participantIds);
     setDescription("");
     setValue("");
+    setParticipantIds(residents.map((r) => r.id));
     setError("");
   }
 
@@ -94,6 +110,39 @@ export default function ExpensesScreen() {
                   </Pressable>
                 ))}
               </View>
+              <Text style={styles.label}>Dividir entre</Text>
+              <View style={styles.participantsList}>
+                {residents.map((r) => {
+                  const isSelected = participantIds.includes(r.id);
+                  return (
+                    <Pressable
+                      key={r.id}
+                      style={[styles.participantRow, isSelected && styles.participantRowActive]}
+                      onPress={() => toggleParticipant(r.id)}
+                    >
+                      <View
+                        style={[
+                          styles.participantCheckbox,
+                          isSelected && styles.participantCheckboxActive,
+                        ]}
+                      >
+                        {isSelected ? (
+                          <Ionicons name="checkmark" size={13} color={colors.white} />
+                        ) : null}
+                      </View>
+                      <Avatar name={r.name} size={26} />
+                      <Text
+                        style={[
+                          styles.participantName,
+                          isSelected && styles.participantNameActive,
+                        ]}
+                      >
+                        {r.name}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
               {error ? <Text style={styles.error}>{error}</Text> : null}
               <PrimaryButton title="Registrar despesa" onPress={handleAdd} style={{ marginTop: 8 }} />
               <Text style={styles.sectionTitle}>Histórico</Text>
@@ -101,12 +150,22 @@ export default function ExpensesScreen() {
           }
           renderItem={({ item }) => {
             const payer = residentById[item.payerId];
+            const participants = (item.participantIds || residents.map((r) => r.id))
+              .map((id) => residentById[id]?.name)
+              .filter(Boolean);
+            const splitAll = participants.length === residents.length;
+
             return (
               <View style={styles.expenseCard}>
                 <Avatar name={payer?.name} size={34} />
                 <View style={styles.expenseBody}>
                   <Text style={styles.expenseDesc}>{item.description}</Text>
                   <Text style={styles.expensePayer}>Pago por {payer?.name ?? "—"}</Text>
+                  <Text style={styles.expenseSplit} numberOfLines={1}>
+                    {splitAll
+                      ? "Dividido entre todos"
+                      : `Dividido com ${participants.join(", ")}`}
+                  </Text>
                 </View>
                 <Text style={styles.expenseValue}>{formatCurrency(item.value)}</Text>
               </View>
@@ -152,6 +211,36 @@ const styles = StyleSheet.create({
   payerChipActive: { backgroundColor: colors.accentLight, borderWidth: 1, borderColor: colors.accent },
   payerChipText: { marginLeft: 6, fontSize: 13, color: colors.textMuted, fontWeight: "600" },
   payerChipTextActive: { color: colors.primary },
+  participantsList: { gap: 8 },
+  participantRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    gap: 10,
+  },
+  participantRowActive: {
+    backgroundColor: colors.accentLight,
+    borderColor: colors.accent,
+  },
+  participantCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  participantCheckboxActive: {
+    backgroundColor: colors.accent,
+  },
+  participantName: { fontSize: 13.5, color: colors.textMuted, fontWeight: "600" },
+  participantNameActive: { color: colors.primary, fontWeight: "700" },
   error: { color: colors.danger, marginTop: 10, fontSize: 13 },
   sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.primary, marginTop: 24, marginBottom: 8 },
   empty: { textAlign: "center", color: colors.textMuted, marginTop: 20 },
@@ -171,5 +260,6 @@ const styles = StyleSheet.create({
   expenseBody: { flex: 1, marginLeft: 12 },
   expenseDesc: { fontSize: 15, fontWeight: "600", color: colors.textDark },
   expensePayer: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  expenseSplit: { fontSize: 11.5, color: colors.accent, marginTop: 2, fontWeight: "600" },
   expenseValue: { fontSize: 15, fontWeight: "800", color: colors.primary },
 });
