@@ -117,6 +117,58 @@ export function checkAndResetRecurringTasks(tasks, now = new Date()) {
 }
 
 /**
+ * Projeta as próximas ocorrências de tarefas recorrentes dentro de um horizonte de dias.
+ * Tarefas "Única" são ignoradas, pois não possuem ciclo de repetição.
+ * @param {Array} tasks
+ * @param {{ horizonDays?: number, occurrencesPerTask?: number, now?: Date }} [options]
+ * @returns {Array<{ taskId: string, title: string, assigneeId: string|null, recurrence: string, date: string }>}
+ */
+function startOfDayMs(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+export function getUpcomingOccurrences(tasks, options = {}) {
+  const { horizonDays = 30, occurrencesPerTask = 6, now = new Date() } = options;
+  const horizonMs = now.getTime() + horizonDays * 24 * 60 * 60 * 1000;
+  const today = startOfDayMs(now);
+  const occurrences = [];
+
+  tasks.forEach((task) => {
+    if (!task.recurrence || task.recurrence === "Única" || task.recurrence === "Sem recorrência") {
+      return;
+    }
+
+    let anchor = new Date(task.nextDueDate || calculateNextDueDate(task.recurrence, now));
+    if (isNaN(anchor.getTime())) return;
+
+    // A primeira ocorrência sempre é exibida (pode estar atrasada). As seguintes só
+    // entram quando já estiverem no futuro, evitando empilhar datas passadas de um
+    // ciclo perdido (ex.: tarefa diária atrasada há vários dias).
+    let isFirst = true;
+    let pushed = 0;
+    while (pushed < occurrencesPerTask && anchor.getTime() <= horizonMs) {
+      if (isFirst || startOfDayMs(anchor) > today) {
+        occurrences.push({
+          taskId: task.id,
+          title: task.title,
+          assigneeId: task.assigneeId || null,
+          recurrence: task.recurrence,
+          date: anchor.toISOString(),
+        });
+        pushed += 1;
+        isFirst = false;
+      }
+      anchor = new Date(calculateNextDueDate(task.recurrence, anchor));
+    }
+  });
+
+  occurrences.sort((a, b) => new Date(a.date) - new Date(b.date));
+  return occurrences;
+}
+
+/**
  * Cria payload inicial normalizado para novas tarefas.
  * @param {object} taskInput
  * @returns {object}

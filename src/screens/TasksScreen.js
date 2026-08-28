@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import ScreenHeader from "../components/ScreenHeader";
 import Avatar from "../components/Avatar";
 import PrimaryButton from "../components/PrimaryButton";
@@ -590,6 +590,7 @@ function TaskCardItem({
 }
 
 export default function TasksScreen() {
+  const navigation = useNavigation();
   const { user } = useAuth();
   const {
     tasks,
@@ -955,6 +956,26 @@ export default function TasksScreen() {
               Toque para editar · Segure para selecionar e remover
             </Text>
           </View>
+
+          {/* Atalho para a projeção de próximas ocorrências de tarefas recorrentes */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.upcomingShortcutBtn,
+              pressed && { opacity: 0.85 },
+            ]}
+            onPress={() => navigation.navigate("UpcomingOccurrences")}
+          >
+            <View style={styles.upcomingShortcutIconWrap}>
+              <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.upcomingShortcutTextWrap}>
+              <Text style={styles.upcomingShortcutTitle}>Ver próximas ocorrências</Text>
+              <Text style={styles.upcomingShortcutSub}>
+                Projeção das tarefas recorrentes por data
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </Pressable>
 
           {/* Renderização das Pastas em Ordem de Prioridade */}
           {FOLDERS.map((folder) => {
@@ -1692,6 +1713,33 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontWeight: "600",
   },
+  upcomingShortcutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: "#E3ECE7",
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  upcomingShortcutIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.accentLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  upcomingShortcutTextWrap: { flex: 1 },
+  upcomingShortcutTitle: { fontSize: 13.5, fontWeight: "700", color: colors.primary },
+  upcomingShortcutSub: { fontSize: 11, color: colors.textMuted, marginTop: 1 },
   folderCard: {
     backgroundColor: colors.white,
     borderRadius: 18,
