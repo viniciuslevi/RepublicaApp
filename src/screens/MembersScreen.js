@@ -15,6 +15,7 @@ export default function MembersScreen() {
   const { residents, activeResidence, removeResident } = useAppData();
   const [pendingRemoval, setPendingRemoval] = useState(null);
   const [error, setError] = useState("");
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const currentResidentId = useMemo(() => {
     if (!user) return null;
@@ -31,15 +32,20 @@ export default function MembersScreen() {
   const isCurrentUserAdmin = !!adminId && adminId === currentResidentId;
   const canRemoveAnyone = isCurrentUserAdmin && residents.length > 1;
 
-  function handleConfirmRemoval() {
+  async function handleConfirmRemoval() {
     if (!pendingRemoval) return;
-    const result = removeResident(pendingRemoval.id);
-    if (!result.success) {
-      setError(result.error);
-    } else {
-      setError("");
+    setIsRemoving(true);
+    try {
+      const result = await removeResident(pendingRemoval.id);
+      if (!result.success) {
+        setError(result.error);
+      } else {
+        setError("");
+      }
+    } finally {
+      setIsRemoving(false);
+      setPendingRemoval(null);
     }
-    setPendingRemoval(null);
   }
 
   return (
@@ -140,6 +146,7 @@ export default function MembersScreen() {
             <PrimaryButton
               title="Remover morador"
               onPress={handleConfirmRemoval}
+              loading={isRemoving}
               style={styles.confirmDeleteBtn}
             />
             <PrimaryButton

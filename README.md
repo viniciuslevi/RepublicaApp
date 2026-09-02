@@ -35,17 +35,32 @@ Freemium com assinatura por grupo/residência.
 
 O backlog (épicos, histórias de usuário e subtarefas técnicas) é gerenciado no Jira: [RepublicApp — board SCRUM](https://republica.atlassian.net/jira/software/projects/SCRUM/boards/1/backlog).
 
-## Protótipo mobile (React Native / Expo)
-
-Protótipo navegável do MVP com dados mockados (sem backend real) — ver [SCRUM-106](https://republica.atlassian.net/jira/software/projects/SCRUM/boards/1/backlog?selectedIssue=SCRUM-106).
+## App mobile (React Native / Expo)
 
 Telas: Criar/Entrar em residência → Tarefas (com atribuição) → Despesas (registro + histórico) → Resumo de saldos.
 
+### Backend
+
+Autenticação, residências (criar/entrar por código/remover morador) e tarefas (com recorrência) já conversam com a API real em [`../republica-backend`](../republica-backend). **Despesas e lista de compras continuam locais/mockadas** — o backend ainda não oferece esses endpoints (ver `docs/API.md` do backend).
+
+Camada de integração: `src/config/env.js` (URL da API), `src/services/apiClient.js` (fetch + tokens + refresh automático), `src/services/authService.js`, `src/services/residenceService.js`, `src/services/taskApi.js`.
+
 ### Como executar
+
+1. Suba o backend primeiro (veja o README de `../republica-backend`) — precisa estar rodando em `http://localhost:3000` (padrão).
+2. Nesta pasta:
 
 ```bash
 npm install
 npx expo start
 ```
 
-Abra no emulador Android/iOS pelo terminal do Expo, ou escaneie o QR code com o app **Expo Go** no celular. Também é possível rodar no navegador com `npx expo start --web` (suporte web serve apenas para visualização rápida do protótipo).
+Abra no emulador Android/iOS pelo terminal do Expo, ou escaneie o QR code com o app **Expo Go** no celular. Também é possível rodar no navegador com `npx expo start --web`.
+
+**URL da API por ambiente** (a variável `EXPO_PUBLIC_API_URL` sobrescreve o padrão — crie um `.env` na raiz se precisar mudar):
+
+| Ambiente | URL padrão |
+|---|---|
+| Web / iOS Simulator | `http://localhost:3000` (automático) |
+| Emulador Android | `http://10.0.2.2:3000` (automático — alias do host dentro do emulador) |
+| Dispositivo físico (mesma rede) | defina `EXPO_PUBLIC_API_URL=http://<ip-da-máquina>:3000` |

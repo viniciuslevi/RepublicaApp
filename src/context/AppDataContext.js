@@ -1,36 +1,42 @@
-import React, { createContext, useContext, useMemo, useState, useEffect } from "react";
-import {
-  initialResidents,
-  initialTasks,
-  initialExpenses,
-  initialResidences,
-  initialShoppingItems,
-} from "../data/mock";
-import {
-  checkAndResetRecurringTasks,
-  calculateNextDueDate,
-  createNormalizedTask,
-} from "../services/recurrenceService";
+import React, { createContext, useContext, useMemo, useState, useEffect, useCallback } from "react";
+import { initialExpenses, initialShoppingItems } from "../data/mock";
+import { residenceService } from "../services/residenceService";
+import { taskApi } from "../services/taskApi";
+import { useAuth } from "./AuthContext";
 
 const AppDataContext = createContext(null);
 
+/**
+ * Residências e tarefas são carregadas do backend real. Despesas e lista de
+ * compras continuam locais/mockadas — o backend ainda não oferece esses
+ * endpoints (removidos temporariamente, ver README do backend).
+ */
 export function AppDataProvider({ children }) {
-  const [residences, setResidences] = useState(initialResidences);
-  const [activeResidence, setActiveResidence] = useState(initialResidences[0]);
-  const [groupName, setGroupName] = useState(initialResidences[0]?.name || "");
-  const [inviteCode] = useState("REP-4F2A");
-  const [residents, setResidents] = useState(initialResidents);
-  const [tasks, setTasks] = useState(initialTasks);
+  const { isAuthenticated } = useAuth();
+
+  const [residences, setResidences] = useState([]);
+  const [activeResidence, setActiveResidence] = useState(null);
+  const [residents, setResidents] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [isLoadingResidence, setIsLoadingResidence] = useState(false);
+
   const [expenses, setExpenses] = useState(initialExpenses);
   const [shoppingItems, setShoppingItems] = useState(initialShoppingItems);
 
-  // Executa verificação de ciclo de reset de tarefas recorrentes ao carregar o app
+  // Ao logar, carrega a lista de residências do usuário; ao deslogar, limpa tudo
   useEffect(() => {
-    setTasks((prevTasks) => {
-      const { tasks: resetTasks, resetCount } = checkAndResetRecurringTasks(prevTasks);
-      return resetCount > 0 ? resetTasks : prevTasks;
-    });
-  }, []);
+    if (!isAuthenticated) {
+      setResidences([]);
+      setActiveResidence(null);
+      setResidents([]);
+      setTasks([]);
+      return;
+    }
+    residenceService.list().catch((error) => {
+      console.warn("Falha ao carregar residências:", error.message);
+      return [];
+    }).then((list) => list && setResidences(list));
+  }, [isAuthenticated]);
 
   const residentById = useMemo(() => {
     const map = {};
@@ -38,186 +44,128 @@ export function AppDataProvider({ children }) {
     return map;
   }, [residents]);
 
+  const groupName = activeResidence?.name || "";
+
+  const loadResidenceDetail = useCallback(async (residenceId) => {
+    setIsLoadingResidence(true);
+    try {
+      const [{ residence, members }, fetchedTasks] = await Promise.all([
+        residenceService.getDetail(residenceId),
+        taskApi.list(residenceId),
+      ]);
+      setActiveResidence(residence);
+      setResidents(members);
+      setTasks(fetchedTasks);
+      return residence;
+    } finally {
+      setIsLoadingResidence(false);
+    }
+  }, []);
+
   function selectResidence(residence) {
-    setActiveResidence(residence);
-    setGroupName(residence.name);
+    return loadResidenceDetail(residence.id);
   }
 
-  function createResidence(name, address = "") {
-    const newCode = `REP-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-    const newResidence = {
-      id: `rep_${Date.now()}`,
-      name: name.trim(),
-      code: newCode,
-      membersCount: 1,
-      address: address.trim() || "Endereço não informado",
-      description: "Nova residência criada",
-      members: ["Você"],
-      adminId: residents[0]?.id ?? null,
-    };
-
-    setResidences((prev) => [newResidence, ...prev]);
-    setActiveResidence(newResidence);
-    setGroupName(newResidence.name);
-    return newResidence;
+  async function createResidence(name, address = "") {
+    const created = await residenceService.create(name, address);
+    setResidences((prev) => [created, ...prev]);
+    await loadResidenceDetail(created.id);
+    return created;
   }
 
-  function joinResidence(code) {
-    const cleanCode = (code || "").trim().toUpperCase();
-    const found = residences.find((r) => r.code === cleanCode);
-
-    if (found) {
-      setActiveResidence(found);
-      setGroupName(found.name);
-      return { success: true, residence: found };
+  async function joinResidence(code) {
+    try {
+      const joined = await residenceService.join(code);
+      setResidences((prev) => (prev.some((r) => r.id === joined.id) ? prev : [joined, ...prev]));
+      await loadResidenceDetail(joined.id);
+      return { success: true, residence: joined };
+    } catch (error) {
+      return { success: false, error: error.message || "Código de convite inválido ou não encontrado." };
     }
-
-    if (cleanCode === inviteCode) {
-      const defaultRep = initialResidences[0];
-      setActiveResidence(defaultRep);
-      setGroupName(defaultRep.name);
-      return { success: true, residence: defaultRep };
-    }
-
-    // Se for um código válido novo simulado
-    if (cleanCode.startsWith("REP-") && cleanCode.length >= 7) {
-      const joinedResidence = {
-        id: `rep_${Date.now()}`,
-        name: `Residência (${cleanCode})`,
-        code: cleanCode,
-        membersCount: 2,
-        address: "República Compartilhada",
-        description: "Entrou via código de convite",
-        members: ["Você", "Outro morador"],
-        adminId: residents[0]?.id ?? null,
-      };
-      setResidences((prev) => [joinedResidence, ...prev]);
-      setActiveResidence(joinedResidence);
-      setGroupName(joinedResidence.name);
-      return { success: true, residence: joinedResidence };
-    }
-
-    return { success: false, error: "Código de convite inválido ou não encontrado." };
   }
 
-  function removeResident(residentId) {
-    if (residents.length <= 1) {
-      return { success: false, error: "Não é possível remover o último morador da república." };
+  async function removeResident(residentId) {
+    if (!activeResidence) {
+      return { success: false, error: "Nenhuma residência selecionada." };
     }
-    if (activeResidence?.adminId === residentId) {
-      return { success: false, error: "O administrador da república não pode ser removido." };
+    try {
+      await residenceService.removeMember(activeResidence.id, residentId);
+      setResidents((prev) => prev.filter((r) => r.id !== residentId));
+      setTasks((prev) =>
+        prev.map((t) => (t.assigneeId === residentId ? { ...t, assigneeId: null } : t))
+      );
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message || "Não foi possível remover o morador." };
     }
-
-    setResidents((prev) => prev.filter((r) => r.id !== residentId));
-    setTasks((prev) =>
-      prev.map((t) => (t.assigneeId === residentId ? { ...t, assigneeId: null } : t))
-    );
-    return { success: true };
   }
 
   function toggleTaskDone(taskId) {
-    const now = new Date();
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== taskId) return t;
+    if (!activeResidence) return;
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
 
-        const nextDone = !t.done;
-        return {
-          ...t,
-          done: nextDone,
-          lastCompletedAt: nextDone ? now.toISOString() : null,
-          nextDueDate:
-            nextDone && t.recurrence && t.recurrence !== "Única"
-              ? calculateNextDueDate(t.recurrence, now)
-              : t.nextDueDate || null,
-        };
-      })
-    );
+    const action = task.done ? taskApi.reopen : taskApi.complete;
+    action(activeResidence.id, taskId)
+      .then((updated) => setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t))))
+      .catch((error) => console.warn("Falha ao atualizar tarefa:", error.message));
   }
 
   function assignTask(taskId, residentId) {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, assigneeId: residentId } : t))
-    );
+    updateTask(taskId, { assigneeId: residentId });
   }
 
   function addTask(titleOrData, recurrence = "Única", assigneeId = null, description = "", priority = "Média") {
-    let newTask;
-    if (typeof titleOrData === "object" && titleOrData !== null) {
-      newTask = createNormalizedTask(titleOrData);
-    } else {
-      newTask = createNormalizedTask({
-        title: titleOrData,
-        description,
-        assigneeId,
-        recurrence,
-        priority,
-      });
-    }
+    if (!activeResidence) return null;
 
-    setTasks((prev) => [newTask, ...prev]);
-    return newTask.id;
+    const input =
+      typeof titleOrData === "object" && titleOrData !== null
+        ? titleOrData
+        : { title: titleOrData, description, assigneeId, recurrence, priority };
+
+    taskApi
+      .create(activeResidence.id, input)
+      .then((created) => setTasks((prev) => [created, ...prev]))
+      .catch((error) => console.warn("Falha ao criar tarefa:", error.message));
+    return null;
   }
 
   function updateTask(taskId, updatedData) {
-    const now = new Date();
-    let updatedTaskResult = null;
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== taskId) return t;
+    if (!activeResidence) return null;
 
-        const recurrenceChanged =
-          updatedData.recurrence && updatedData.recurrence !== t.recurrence;
-        const nextRecurrence = updatedData.recurrence || t.recurrence;
-        const nextDueDate = recurrenceChanged
-          ? nextRecurrence !== "Única"
-            ? calculateNextDueDate(nextRecurrence, now)
-            : null
-          : t.nextDueDate;
-
-        updatedTaskResult = {
-          ...t,
-          ...updatedData,
-          title:
-            updatedData.title !== undefined ? updatedData.title.trim() : t.title,
-          description:
-            updatedData.description !== undefined
-              ? updatedData.description.trim()
-              : t.description,
-          assigneeId:
-            updatedData.assigneeId !== undefined
-              ? updatedData.assigneeId
-              : t.assigneeId,
-          recurrence: nextRecurrence,
-          priority:
-            updatedData.priority !== undefined
-              ? updatedData.priority
-              : (t.priority || "Média"),
-          nextDueDate,
-          updatedAt: now.toISOString(),
-        };
-        return updatedTaskResult;
-      })
-    );
-    return updatedTaskResult;
+    // Atualização otimista: a UI responde na hora, e é reconciliada com a resposta do servidor
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updatedData } : t)));
+    taskApi
+      .update(activeResidence.id, taskId, updatedData)
+      .then((updated) => setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t))))
+      .catch((error) => console.warn("Falha ao atualizar tarefa:", error.message));
+    return null;
   }
 
   function deleteTask(taskId) {
+    if (!activeResidence) return true;
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    taskApi.remove(activeResidence.id, taskId).catch((error) => console.warn("Falha ao excluir tarefa:", error.message));
     return true;
   }
 
   function deleteTasks(taskIds) {
+    if (!activeResidence) return true;
     const idSet = new Set(taskIds);
     setTasks((prev) => prev.filter((t) => !idSet.has(t.id)));
+    taskIds.forEach((id) =>
+      taskApi.remove(activeResidence.id, id).catch((error) => console.warn("Falha ao excluir tarefa:", error.message))
+    );
     return true;
   }
 
-  function resetRecurringTasksNow(referenceDate = new Date()) {
-    setTasks((prevTasks) => {
-      const { tasks: resetTasks } = checkAndResetRecurringTasks(prevTasks, referenceDate);
-      return resetTasks;
-    });
+  function resetRecurringTasksNow() {
+    if (!activeResidence) return;
+    // O reset de recorrência é feito pelo backend a cada listagem — aqui só recarregamos.
+    taskApi
+      .list(activeResidence.id)
+      .then(setTasks)
+      .catch((error) => console.warn("Falha ao recarregar tarefas:", error.message));
   }
 
   function addExpense(description, value, payerId, participantIds = null) {
@@ -276,12 +224,11 @@ export function AppDataProvider({ children }) {
   const value = {
     residences,
     activeResidence,
+    isLoadingResidence,
     selectResidence,
     createResidence,
     joinResidence,
     groupName,
-    setGroupName,
-    inviteCode,
     residents,
     residentById,
     removeResident,
@@ -304,7 +251,6 @@ export function AppDataProvider({ children }) {
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }
-
 
 export function useAppData() {
   const ctx = useContext(AppDataContext);

@@ -19,51 +19,64 @@ import { useAuth } from "../context/AuthContext";
 
 export default function SelectResidenceScreen({ navigation }) {
   const { user, logout } = useAuth();
-  const {
-    residences,
-    selectResidence,
-    createResidence,
-    joinResidence,
-    inviteCode,
-  } = useAppData();
+  const { residences, selectResidence, createResidence, joinResidence } = useAppData();
 
   const [mode, setMode] = useState("list"); // "list" | "create" | "join"
   const [newName, setNewName] = useState("");
   const [newAddress, setNewAddress] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSelect(residence) {
-    selectResidence(residence);
-    navigation.replace("Main");
+  async function handleSelect(residence) {
+    setIsSubmitting(true);
+    try {
+      await selectResidence(residence);
+      navigation.replace("Main");
+    } catch (err) {
+      setError(err.message || "Não foi possível abrir esta moradia.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!newName.trim()) {
       setError("Informe um nome para a nova moradia.");
       return;
     }
-    const created = createResidence(newName, newAddress);
-    setError("");
-    setNewName("");
-    setNewAddress("");
-    selectResidence(created);
-    navigation.replace("Main");
+    setIsSubmitting(true);
+    try {
+      await createResidence(newName, newAddress);
+      setError("");
+      setNewName("");
+      setNewAddress("");
+      navigation.replace("Main");
+    } catch (err) {
+      setError(err.message || "Não foi possível criar a moradia. Tente novamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  function handleJoin() {
+  async function handleJoin() {
     if (!code.trim()) {
       setError("Informe o código de convite.");
       return;
     }
-    const result = joinResidence(code);
-    if (!result.success) {
-      setError(result.error || "Código inválido. Tente novamente.");
-      return;
+    setIsSubmitting(true);
+    try {
+      const result = await joinResidence(code);
+      if (!result.success) {
+        setError(result.error || "Código inválido. Tente novamente.");
+        return;
+      }
+      setError("");
+      setCode("");
+      navigation.replace("Main");
+    } finally {
+      setIsSubmitting(false);
     }
-    setError("");
-    setCode("");
-    navigation.replace("Main");
   }
 
   function handleLogout() {
@@ -273,6 +286,7 @@ export default function SelectResidenceScreen({ navigation }) {
                 <PrimaryButton
                   title="Criar e Acessar Moradia"
                   onPress={handleCreate}
+                  loading={isSubmitting}
                   style={styles.actionBtn}
                 />
 
@@ -309,13 +323,6 @@ export default function SelectResidenceScreen({ navigation }) {
                   }}
                 />
 
-                <View style={styles.hintBox}>
-                  <Ionicons name="information-circle-outline" size={18} color={colors.accent} />
-                  <Text style={styles.hintText}>
-                    Dica de protótipo: utilize o código <Text style={styles.hintBold}>{inviteCode}</Text> para conectar à república mockada padrão.
-                  </Text>
-                </View>
-
                 {error ? (
                   <View style={styles.errorBox}>
                     <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
@@ -326,6 +333,7 @@ export default function SelectResidenceScreen({ navigation }) {
                 <PrimaryButton
                   title="Entrar na Moradia"
                   onPress={handleJoin}
+                  loading={isSubmitting}
                   style={styles.actionBtn}
                 />
 
@@ -584,25 +592,6 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     fontSize: 15,
     color: colors.textDark,
-  },
-  hintBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.accentLight,
-    padding: 10,
-    borderRadius: 10,
-    marginTop: 12,
-    gap: 8,
-  },
-  hintText: {
-    color: colors.primaryDark,
-    fontSize: 12.5,
-    flex: 1,
-    lineHeight: 17,
-  },
-  hintBold: {
-    fontWeight: "800",
-    color: colors.primary,
   },
   errorBox: {
     flexDirection: "row",

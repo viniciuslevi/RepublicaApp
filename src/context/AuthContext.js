@@ -1,11 +1,34 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { authService } from "../services/authService";
+import { onSessionExpired } from "../services/apiClient";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+  // Restaura a sessão salva (se houver) ao abrir o app
+  useEffect(() => {
+    let mounted = true;
+    authService.getStoredSession().then((session) => {
+      if (mounted && session) {
+        setUser(session.user);
+      }
+      if (mounted) setIsBootstrapping(false);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Se o refreshToken também expirar/for revogado, o apiClient avisa por aqui
+  useEffect(() => {
+    return onSessionExpired(() => {
+      setUser(null);
+    });
+  }, []);
 
   async function login(email, password) {
     setIsLoading(true);
@@ -34,6 +57,7 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
+    authService.logout();
     setUser(null);
   }
 
@@ -41,6 +65,7 @@ export function AuthProvider({ children }) {
     user,
     isAuthenticated: !!user,
     isLoading,
+    isBootstrapping,
     login,
     register,
     logout,

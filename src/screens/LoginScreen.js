@@ -13,16 +13,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import PrimaryButton from "../components/PrimaryButton";
-import Avatar from "../components/Avatar";
 import { colors } from "../theme/colors";
 import { useAuth } from "../context/AuthContext";
-import { initialResidents } from "../data/mock";
 
 export default function LoginScreen({ navigation }) {
   const { login, isLoading } = useAuth();
 
-  const [email, setEmail] = useState("ana@republica.com");
-  const [password, setPassword] = useState("123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,12 +35,6 @@ export default function LoginScreen({ navigation }) {
 
     // Após o login, direciona para a tela de seleção/gestão de moradia compartilhada
     navigation.replace("SelectResidence");
-  }
-
-  function handleQuickFill(resident) {
-    setEmail(resident.email);
-    setPassword("123");
-    setError("");
   }
 
   return (
@@ -169,40 +161,6 @@ export default function LoginScreen({ navigation }) {
               </Pressable>
             </View>
 
-            {/* Quick Login Helper for Prototype */}
-            <View style={styles.quickAccessSection}>
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>ou teste rápido como morador</Text>
-                <View style={styles.dividerLine} />
-              </View>
-
-              <View style={styles.residentsRow}>
-                {initialResidents.map((resident) => {
-                  const isSelected = email.toLowerCase() === resident.email.toLowerCase();
-                  return (
-                    <Pressable
-                      key={resident.id}
-                      style={[
-                        styles.residentChip,
-                        isSelected && styles.residentChipSelected,
-                      ]}
-                      onPress={() => handleQuickFill(resident)}
-                    >
-                      <Avatar name={resident.name} size={24} />
-                      <Text
-                        style={[
-                          styles.residentChipText,
-                          isSelected && styles.residentChipTextSelected,
-                        ]}
-                      >
-                        {resident.name}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -343,58 +301,6 @@ const styles = StyleSheet.create({
   },
   registerTextAccent: {
     color: colors.accent,
-    fontWeight: "700",
-  },
-  quickAccessSection: {
-    marginTop: 28,
-  },
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 14,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "#E2E8E5",
-  },
-  dividerText: {
-    color: colors.textMuted,
-    fontSize: 11.5,
-    fontWeight: "600",
-    paddingHorizontal: 10,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  residentsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  residentChip: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: "#D9E3DE",
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-  },
-  residentChipSelected: {
-    backgroundColor: colors.accentLight,
-    borderColor: colors.accent,
-  },
-  residentChipText: {
-    marginLeft: 6,
-    fontSize: 13,
-    color: colors.textDark,
-    fontWeight: "600",
-  },
-  residentChipTextSelected: {
-    color: colors.primary,
     fontWeight: "700",
   },
 });
