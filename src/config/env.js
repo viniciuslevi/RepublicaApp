@@ -1,20 +1,14 @@
-import { Platform } from "react-native";
-
 /**
- * URL base da API. Pode ser sobrescrita definindo EXPO_PUBLIC_API_URL (ex.: num
- * arquivo .env na raiz do projeto) — necessário para testar num dispositivo físico
- * na mesma rede, onde "localhost" aponta para o próprio celular, não para o
- * computador que roda o backend.
+ * URL base da API.
  *
- * Padrão por plataforma quando a variável não é definida:
- * - Android (emulador): 10.0.2.2 é o alias do host da máquina dentro do emulador.
- * - iOS (simulador) e Web: localhost funciona normalmente.
+ * Padrão: o backend em produção (Render), para o app funcionar out-of-the-box
+ * (Expo Go, APK do EAS, etc.) sem precisar de nenhum setup local.
+ *
+ * Para desenvolver contra um backend local, sobrescreva com EXPO_PUBLIC_API_URL
+ * num arquivo `.env` na raiz do projeto (ver `.env.example`) — necessário
+ * também para testar num dispositivo físico na mesma rede, onde "localhost"
+ * apontaria para o próprio celular, não para o computador que roda o backend.
  */
-function resolveDefaultApiUrl() {
-  if (Platform.OS === "android") {
-    return "http://10.0.2.2:3000";
-  }
-  return "http://localhost:3000";
-}
+const PRODUCTION_API_URL = "https://republica-backend-bo50.onrender.com";
 
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || resolveDefaultApiUrl();
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL;

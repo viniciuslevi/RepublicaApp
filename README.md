@@ -41,26 +41,25 @@ Telas: Criar/Entrar em residência → Tarefas (com atribuição) → Despesas (
 
 ### Backend
 
-Autenticação, residências (criar/entrar por código/remover morador) e tarefas (com recorrência) já conversam com a API real em [`../republica-backend`](../republica-backend). **Despesas e lista de compras continuam locais/mockadas** — o backend ainda não oferece esses endpoints (ver `docs/API.md` do backend).
+Autenticação, residências (criar/entrar por código/remover morador) e tarefas (com recorrência) já conversam com a API real: [`../republica-backend`](../republica-backend), deployada em produção em `https://republica-backend-bo50.onrender.com` (Render + MongoDB Atlas — ver o README do backend). **Despesas e lista de compras continuam locais/mockadas** — o backend ainda não oferece esses endpoints (ver `docs/API.md` do backend).
 
 Camada de integração: `src/config/env.js` (URL da API), `src/services/apiClient.js` (fetch + tokens + refresh automático), `src/services/authService.js`, `src/services/residenceService.js`, `src/services/taskApi.js`.
 
-### Como executar
+> O serviço do Render está no plano free — se ninguém usar por ~15 min ele "dorme"; a primeira requisição depois disso demora uns 30-50s pra acordar. Normal, só esperar.
 
-1. Suba o backend primeiro (veja o README de `../republica-backend`) — precisa estar rodando em `http://localhost:3000` (padrão).
-2. Nesta pasta:
+### Como executar
 
 ```bash
 npm install
 npx expo start
 ```
 
-Abra no emulador Android/iOS pelo terminal do Expo, ou escaneie o QR code com o app **Expo Go** no celular. Também é possível rodar no navegador com `npx expo start --web`.
+Abra no emulador Android/iOS pelo terminal do Expo, ou escaneie o QR code com o app **Expo Go** no celular. Também é possível rodar no navegador com `npx expo start --web`. Por padrão já aponta para o backend em produção — não precisa rodar nada localmente.
 
-**URL da API por ambiente** (a variável `EXPO_PUBLIC_API_URL` sobrescreve o padrão — crie um `.env` na raiz se precisar mudar):
+**Para desenvolver contra um backend local** (`npm run dev` no `republica-backend`): copie `.env.example` para `.env` e descomente a linha certa pra sua plataforma:
 
-| Ambiente | URL padrão |
+| Ambiente | `EXPO_PUBLIC_API_URL` |
 |---|---|
-| Web / iOS Simulator | `http://localhost:3000` (automático) |
-| Emulador Android | `http://10.0.2.2:3000` (automático — alias do host dentro do emulador) |
-| Dispositivo físico (mesma rede) | defina `EXPO_PUBLIC_API_URL=http://<ip-da-máquina>:3000` |
+| Web / iOS Simulator | `http://localhost:3000` |
+| Emulador Android | `http://10.0.2.2:3000` (alias do host dentro do emulador) |
+| Dispositivo físico (mesma rede) | `http://<ip-da-máquina>:3000` |
