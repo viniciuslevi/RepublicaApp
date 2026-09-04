@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Text, FlatList, StyleSheet } from "react-native";
+import React, { useState } from "react";
+import { View, Text, FlatList, StyleSheet, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -9,12 +9,24 @@ import { colors } from "../theme/colors";
 import { useAppData } from "../context/AppDataContext";
 
 function formatCurrency(value) {
-  const sign = value < 0 ? "-" : "";
-  return `${sign}R$ ${Math.abs(value).toFixed(2).replace(".", ",")}`;
+  const num = typeof value === "number" ? value : Number(value) || 0;
+  const sign = num < 0 ? "-" : "";
+  return `${sign}R$ ${Math.abs(num).toFixed(2).replace(".", ",")}`;
 }
 
 export default function SummaryScreen() {
-  const { balances, totalExpenses } = useAppData();
+  const { balances, totalExpenses, refreshBalances } = useAppData();
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function onRefresh() {
+    if (!refreshBalances) return;
+    try {
+      setRefreshing(true);
+      await refreshBalances();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -37,6 +49,9 @@ export default function SummaryScreen() {
           data={balances}
           keyExtractor={(b) => b.resident.id}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+          }
           ListEmptyComponent={
             <Text style={styles.empty}>Nenhuma despesa registrada — sem saldos a mostrar.</Text>
           }
