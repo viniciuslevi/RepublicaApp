@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,8 @@ import { colors } from "../theme/colors";
 import { useAppData } from "../context/AppDataContext";
 
 function formatCurrency(value) {
-  return `R$ ${value.toFixed(2).replace(".", ",")}`;
+  const num = typeof value === "number" ? value : Number(value) || 0;
+  return `R$ ${num.toFixed(2).replace(".", ",")}`;
 }
 
 export default function ExpensesScreen() {
@@ -29,6 +30,19 @@ export default function ExpensesScreen() {
   const [payerId, setPayerId] = useState(residents[0]?.id ?? null);
   const [participantIds, setParticipantIds] = useState(residents.map((r) => r.id));
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!payerId && residents.length > 0) {
+      setPayerId(residents[0].id);
+    }
+  }, [residents, payerId]);
+
+  useEffect(() => {
+    if (participantIds.length === 0 && residents.length > 0) {
+      setParticipantIds(residents.map((r) => r.id));
+    }
+  }, [residents]);
 
   function toggleParticipant(residentId) {
     setParticipantIds((prev) =>
@@ -39,25 +53,40 @@ export default function ExpensesScreen() {
     if (error) setError("");
   }
 
-  function handleAdd() {
-    const numeric = Number(value.replace(",", "."));
+  async function handleAdd() {
+    const rawClean = value.trim().replace(/\s/g, "").replace(",", ".");
+    const numeric = Number(rawClean);
+
     if (!description.trim()) {
       setError("Informe uma descrição para a despesa.");
       return;
     }
-    if (!numeric || numeric <= 0) {
-      setError("Informe um valor numérico maior que zero.");
+    if (isNaN(numeric) || numeric <= 0) {
+      setError("Informe um valor numérico positivo maior que zero.");
+      return;
+    }
+    const currentPayerId = payerId || residents[0]?.id;
+    if (!currentPayerId) {
+      setError("Informe quem pagou a despesa.");
       return;
     }
     if (participantIds.length === 0) {
       setError("Selecione ao menos um participante da divisão.");
       return;
     }
-    addExpense(description.trim(), numeric, payerId, participantIds);
-    setDescription("");
-    setValue("");
-    setParticipantIds(residents.map((r) => r.id));
-    setError("");
+
+    try {
+      setIsSubmitting(true);
+      setError("");
+      await addExpense(description.trim(), numeric, currentPayerId, participantIds);
+      setDescription("");
+      setValue("");
+      setParticipantIds(residents.map((r) => r.id));
+    } catch (err) {
+      setError(err.message || "Erro ao registrar despesa no servidor.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -144,20 +173,25 @@ export default function ExpensesScreen() {
                 })}
               </View>
               {error ? <Text style={styles.error}>{error}</Text> : null}
-              <PrimaryButton title="Registrar despesa" onPress={handleAdd} style={{ marginTop: 8 }} />
+              <PrimaryButton
+                title={isSubmitting ? "Registrando..." : "Registrar despesa"}
+                onPress={handleAdd}
+                disabled={isSubmitting}
+                style={{ marginTop: 8 }}
+              />
               <Text style={styles.sectionTitle}>Histórico</Text>
             </View>
           }
           renderItem={({ item }) => {
-            const payer = residentById[item.payerId];
-            const participants = (item.participantIds || residents.map((r) => r.id))
-              .map((id) => residentById[id]?.name)
+            const payer = residentById[item.payerId] || (typeof item.payerId === "object" ? item.payerId : null);
+            const participants = (item.participantIds && item.participantIds.length > 0 ? item.participantIds : residents.map((r) => r.id))
+              .map((id) => residentById[id]?.name || id)
               .filter(Boolean);
-            const splitAll = participants.length === residents.length;
+            const splitAll = residents.length > 0 && participants.length === residents.length;
 
             return (
               <View style={styles.expenseCard}>
-                <Avatar name={payer?.name} size={34} />
+                <Avatar name={payer?.name || "Morador"} size={34} />
                 <View style={styles.expenseBody}>
                   <Text style={styles.expenseDesc}>{item.description}</Text>
                   <Text style={styles.expensePayer}>Pago por {payer?.name ?? "—"}</Text>
