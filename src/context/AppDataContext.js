@@ -2,15 +2,11 @@ import React, { createContext, useContext, useMemo, useState, useEffect, useCall
 import { initialExpenses, initialShoppingItems } from "../data/mock";
 import { residenceService } from "../services/residenceService";
 import { taskApi } from "../services/taskApi";
+import { expenseApi } from "../services/expenseApi";
 import { useAuth } from "./AuthContext";
 
 const AppDataContext = createContext(null);
 
-/**
- * Residências e tarefas são carregadas do backend real. Despesas e lista de
- * compras continuam locais/mockadas — o backend ainda não oferece esses
- * endpoints (removidos temporariamente, ver README do backend).
- */
 export function AppDataProvider({ children }) {
   const { isAuthenticated } = useAuth();
 
@@ -20,7 +16,7 @@ export function AppDataProvider({ children }) {
   const [tasks, setTasks] = useState([]);
   const [isLoadingResidence, setIsLoadingResidence] = useState(false);
 
-  const [expenses, setExpenses] = useState(initialExpenses);
+  const [expenses, setExpenses] = useState([]);
   const [shoppingItems, setShoppingItems] = useState(initialShoppingItems);
 
   // Ao logar, carrega a lista de residências do usuário; ao deslogar, limpa tudo
@@ -30,6 +26,7 @@ export function AppDataProvider({ children }) {
       setActiveResidence(null);
       setResidents([]);
       setTasks([]);
+      setExpenses([]);
       return;
     }
     residenceService.list().catch((error) => {
@@ -49,13 +46,18 @@ export function AppDataProvider({ children }) {
   const loadResidenceDetail = useCallback(async (residenceId) => {
     setIsLoadingResidence(true);
     try {
-      const [{ residence, members }, fetchedTasks] = await Promise.all([
+      const [{ residence, members }, fetchedTasks, fetchedExpenses] = await Promise.all([
         residenceService.getDetail(residenceId),
         taskApi.list(residenceId),
+        expenseApi.list(residenceId).catch((error) => {
+          console.warn("Falha ao carregar despesas:", error.message);
+          return [];
+        }),
       ]);
       setActiveResidence(residence);
       setResidents(members);
       setTasks(fetchedTasks);
+      setExpenses(fetchedExpenses || []);
       return residence;
     } finally {
       setIsLoadingResidence(false);
@@ -168,16 +170,21 @@ export function AppDataProvider({ children }) {
       .catch((error) => console.warn("Falha ao recarregar tarefas:", error.message));
   }
 
-  function addExpense(description, value, payerId, participantIds = null) {
-    const id = `e${Date.now()}`;
+  async function addExpense(description, value, payerId, participantIds = null) {
+    if (!activeResidence) return null;
     const cleanParticipantIds =
       participantIds && participantIds.length > 0
         ? participantIds
         : residents.map((r) => r.id);
-    setExpenses((prev) => [
-      { id, description, value, payerId, participantIds: cleanParticipantIds },
-      ...prev,
-    ]);
+
+    const created = await expenseApi.create(activeResidence.id, {
+      description: description.trim(),
+      value,
+      payerId,
+      participantIds: cleanParticipantIds,
+    });
+    setExpenses((prev) => [created, ...prev]);
+    return created;
   }
 
   function addShoppingItem(name, quantity = "", addedById = null) {
