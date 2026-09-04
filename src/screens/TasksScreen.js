@@ -928,6 +928,48 @@ export default function TasksScreen() {
         },
         onDismiss: () => {},
       });
+    } else if (Platform.OS === "web" && typeof window !== "undefined") {
+      const input = window.prompt("Informe a data (DD/MM/AAAA):", formDueDate || "");
+      if (input) {
+        setFormDueDate(input.trim());
+        if (formError) setFormError("");
+      }
+    }
+  }
+
+  // Abre seletor de Data nativo para Dia do Mês (Recorrência Mensal)
+  function handleOpenMonthDayPicker() {
+    if (Platform.OS === "android" && DateTimePickerAndroid) {
+      let initialDate = new Date();
+      if (formMonthDay) {
+        const day = Math.min(Math.max(1, Number(formMonthDay)), 31);
+        initialDate.setDate(1);
+        if (day > 28) {
+          initialDate.setMonth(0);
+        }
+        initialDate.setDate(day);
+      }
+      DateTimePickerAndroid.open({
+        value: initialDate,
+        mode: "date",
+        onValueChange: (_event, selectedDate) => {
+          if (selectedDate) {
+            const day = selectedDate.getDate();
+            setFormMonthDay(day);
+            if (formError) setFormError("");
+          }
+        },
+        onDismiss: () => {},
+      });
+    } else if (Platform.OS === "web" && typeof window !== "undefined") {
+      const input = window.prompt("Informe o dia do mês (1 a 31):", formMonthDay ? String(formMonthDay) : "1");
+      if (input) {
+        const num = parseInt(input, 10);
+        if (!isNaN(num) && num >= 1 && num <= 31) {
+          setFormMonthDay(num);
+          if (formError) setFormError("");
+        }
+      }
     }
   }
 
@@ -1989,46 +2031,71 @@ export default function TasksScreen() {
 
                 {formRecurrence === "Mensal" && (
                   <View style={styles.fieldGroup}>
-                    <Text style={styles.fieldLabel}>Dia do mês *</Text>
+                    <Text style={styles.fieldLabel}>Agendamento mensal</Text>
                     <Text style={styles.fieldSubLabel}>
-                      Selecione o dia do mês para a execução da tarefa
+                      Defina o dia do mês (obrigatório) e o horário (opcional) para a tarefa
                     </Text>
 
-                    {/* Grade completa de 31 dias do mês (sem digitação) */}
-                    <View style={styles.monthDayGrid}>
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
-                        const isSelected = formMonthDay === day;
-                        return (
-                          <Pressable
-                            key={day}
-                            style={({ pressed }) => [
-                              styles.monthDayChip,
-                              isSelected && styles.monthDayChipActive,
-                              pressed && { opacity: 0.75 },
-                            ]}
-                            onPress={() => {
-                              setFormMonthDay(day);
-                              if (formError) setFormError("");
-                            }}
-                          >
-                            <Text
-                              style={[
-                                styles.monthDayChipText,
-                                isSelected && styles.monthDayChipTextActive,
-                              ]}
-                            >
-                              {day}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-
-                    {/* Seletor de Horário */}
-                    <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Horário (opcional)</Text>
+                    {/* Seletor Atraente de Dia do Mês (mesmo formato da data da tarefa Única) */}
                     <Pressable
                       style={({ pressed }) => [
                         styles.pickerTriggerCard,
+                        formMonthDay ? styles.pickerTriggerCardActiveDate : null,
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      onPress={handleOpenMonthDayPicker}
+                    >
+                      <View style={styles.pickerTriggerContent}>
+                        <View
+                          style={[
+                            styles.pickerTriggerIconWrap,
+                            formMonthDay && styles.pickerTriggerIconWrapActiveDate,
+                          ]}
+                        >
+                          <Ionicons
+                            name="calendar"
+                            size={18}
+                            color={formMonthDay ? colors.gold : colors.textMuted}
+                          />
+                        </View>
+                        <View style={styles.pickerTriggerTextWrap}>
+                          <Text
+                            style={[
+                              styles.pickerTriggerValue,
+                              formMonthDay && styles.pickerTriggerValueActiveDate,
+                            ]}
+                          >
+                            {formMonthDay ? `Todo dia ${formMonthDay}` : "Definir dia do mês *"}
+                          </Text>
+                          <Text style={styles.pickerTriggerHint}>
+                            {formMonthDay
+                              ? `Repete todo dia ${formMonthDay} do mês • Toque para alterar`
+                              : "Obrigatório • Toque para selecionar a data"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {formMonthDay ? (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            setFormMonthDay(null);
+                          }}
+                          hitSlop={12}
+                          style={styles.pickerTriggerClearBtn}
+                        >
+                          <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+                        </Pressable>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                      )}
+                    </Pressable>
+
+                    {/* Seletor Atraente de Horário */}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.pickerTriggerCard,
+                        { marginTop: 10 },
                         formDueTime ? styles.pickerTriggerCardActiveTime : null,
                         pressed && { opacity: 0.85 },
                       ]}
@@ -3330,36 +3397,6 @@ const styles = StyleSheet.create({
     color: "rgba(255, 255, 255, 0.8)",
   },
 
-  // Grade de 31 dias do mês (Recorrência Mensal)
-  monthDayGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 6,
-  },
-  monthDayChip: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1.5,
-    borderColor: "#D2DFD8",
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  monthDayChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  monthDayChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.textDark,
-  },
-  monthDayChipTextActive: {
-    color: colors.white,
-    fontWeight: "800",
-  },
 
   // Modal Fallback de Horário
   timeModalOverlay: {
