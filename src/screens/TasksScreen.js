@@ -2479,9 +2479,10 @@ const styles = StyleSheet.create({
   },
   selectionBadge: {
     backgroundColor: colors.danger,
-    width: 22,
+    minWidth: 22,
     height: 22,
     borderRadius: 11,
+    paddingHorizontal: 5,
     alignItems: "center",
     justifyContent: "center",
   },

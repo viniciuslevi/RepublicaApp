@@ -3,6 +3,7 @@ import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useAuth } from "../context/AuthContext";
@@ -28,13 +29,22 @@ const TAB_ICONS = {
 };
 
 function MainTabs() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: { paddingBottom: 6, paddingTop: 6, height: 60 },
+        // A altura/padding customizados fazem a lib ignorar seu próprio cálculo de
+        // inset, então somamos insets.bottom manualmente para não ficar atrás da
+        // barra de navegação do Android (gestual ou com os 3 botões).
+        tabBarStyle: {
+          paddingBottom: 6 + insets.bottom,
+          paddingTop: 6,
+          height: 60 + insets.bottom,
+        },
         tabBarLabelStyle: { fontSize: 11.5, fontWeight: "600" },
         tabBarIcon: ({ color, size }) => (
           <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />
