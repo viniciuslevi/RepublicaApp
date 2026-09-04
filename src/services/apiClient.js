@@ -66,13 +66,15 @@ export function onSessionExpired(handler) {
 }
 
 async function rawRequest(path, { method = "GET", body, token, headers = {} } = {}) {
+  const requestHeaders = {
+    ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...headers,
+  };
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
+    headers: requestHeaders,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 

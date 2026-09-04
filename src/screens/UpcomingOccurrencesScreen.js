@@ -120,6 +120,7 @@ export default function UpcomingOccurrencesScreen() {
                         </Text>
                         <Text style={styles.occurrenceMeta}>
                           Recorrência {RECURRENCE_LABEL[occ.recurrence] || occ.recurrence}
+                          {occ.dueTime ? ` • às ${occ.dueTime}` : ""}
                         </Text>
                       </View>
 
