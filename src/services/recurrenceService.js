@@ -5,35 +5,115 @@
  * Supabase Edge Functions, triggers agendados no Firebase ou workers de segundo plano).
  */
 
+function parseDueTime(dueTime) {
+  if (!dueTime) return null;
+  const match = /^(\d{1,2}):(\d{2})$/.exec(dueTime.trim());
+  if (!match) return null;
+  const hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return { hours, minutes };
+}
+
+function clampDayOfMonth(year, month, day) {
+  const maxDay = new Date(year, month + 1, 0).getDate();
+  return Math.min(Math.max(1, day), maxDay);
+}
+
+function parseDateParts(dueDate) {
+  if (dueDate instanceof Date) {
+    if (isNaN(dueDate.getTime())) return null;
+    return { year: dueDate.getFullYear(), month: dueDate.getMonth(), day: dueDate.getDate() };
+  }
+  if (typeof dueDate === "string") {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dueDate.trim());
+    if (match) {
+      return {
+        year: parseInt(match[1], 10),
+        month: parseInt(match[2], 10) - 1,
+        day: parseInt(match[3], 10),
+      };
+    }
+    const d = new Date(dueDate);
+    if (isNaN(d.getTime())) return null;
+    return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
+  }
+  return null;
+}
+
 /**
  * Calcula a próxima data de vencimento / reset de uma tarefa a partir de uma data base.
  * @param {"Única" | "Diária" | "Semanal" | "Mensal"} recurrence
  * @param {Date} [fromDate=new Date()]
- * @returns {string | null} Data em formato ISO 8601 ou null para tarefas únicas
+ * @param {object} [details={}]
+ * @returns {string | null} Data em formato ISO 8601 ou null para tarefas únicas sem data
  */
-export function calculateNextDueDate(recurrence, fromDate = new Date()) {
+export function calculateNextDueDate(recurrence, fromDate = new Date(), details = {}) {
   const date = new Date(fromDate);
+  const time = parseDueTime(details?.dueTime);
+  const h = time ? time.hours : 0;
+  const m = time ? time.minutes : 0;
 
   switch (recurrence) {
     case "Diária": {
-      // Próximo dia às 00:00
-      date.setDate(date.getDate() + 1);
-      date.setHours(0, 0, 0, 0);
-      return date.toISOString();
+      const target = new Date(date);
+      target.setHours(h, m, 0, 0);
+      if (time && target.getTime() > date.getTime()) {
+        return target.toISOString();
+      }
+      target.setDate(target.getDate() + 1);
+      return target.toISOString();
     }
     case "Semanal": {
-      // 7 dias à frente às 00:00
-      date.setDate(date.getDate() + 7);
-      date.setHours(0, 0, 0, 0);
-      return date.toISOString();
+      const target = new Date(date);
+      target.setHours(h, m, 0, 0);
+
+      if (details?.weekDay != null) {
+        const desiredDay = Number(details.weekDay);
+        let diff = (desiredDay - date.getDay() + 7) % 7;
+        if (diff === 0 && target.getTime() <= date.getTime()) {
+          diff = 7;
+        }
+        target.setDate(target.getDate() + diff);
+        return target.toISOString();
+      }
+
+      target.setDate(target.getDate() + 7);
+      return target.toISOString();
     }
     case "Mensal": {
-      // Próximo mês no mesmo dia às 00:00
-      date.setMonth(date.getMonth() + 1);
-      date.setHours(0, 0, 0, 0);
-      return date.toISOString();
+      const target = new Date(date);
+      target.setHours(h, m, 0, 0);
+
+      if (details?.monthDay != null) {
+        const desiredDay = Number(details.monthDay);
+        const currentYear = target.getFullYear();
+        const currentMonth = target.getMonth();
+        const dayThisMonth = clampDayOfMonth(currentYear, currentMonth, desiredDay);
+
+        target.setDate(dayThisMonth);
+        if (target.getTime() <= date.getTime()) {
+          const nextMonthDate = new Date(currentYear, currentMonth + 1, 1);
+          const nextYear = nextMonthDate.getFullYear();
+          const nextMonth = nextMonthDate.getMonth();
+          const dayNextMonth = clampDayOfMonth(nextYear, nextMonth, desiredDay);
+          target.setFullYear(nextYear, nextMonth, dayNextMonth);
+        }
+        return target.toISOString();
+      }
+
+      target.setMonth(target.getMonth() + 1);
+      return target.toISOString();
     }
-    case "Única":
+    case "Única": {
+      if (details?.dueDate) {
+        const parts = parseDateParts(details.dueDate);
+        if (parts) {
+          return new Date(parts.year, parts.month, parts.day, h, m, 0, 0).toISOString();
+        }
+      }
+      return null;
+    }
     default:
       return null;
   }
@@ -102,11 +182,17 @@ export function checkAndResetRecurringTasks(tasks, now = new Date()) {
   const updatedTasks = tasks.map((task) => {
     if (shouldResetTask(task, now)) {
       resetCount += 1;
+      const details = {
+        dueTime: task.dueTime,
+        weekDay: task.weekDay,
+        monthDay: task.monthDay,
+        dueDate: task.dueDate,
+      };
       return {
         ...task,
         done: false,
         lastCompletedAt: null,
-        nextDueDate: calculateNextDueDate(task.recurrence, now),
+        nextDueDate: calculateNextDueDate(task.recurrence, now, details),
         updatedAt: now.toISOString(),
       };
     }
@@ -140,12 +226,16 @@ export function getUpcomingOccurrences(tasks, options = {}) {
       return;
     }
 
-    let anchor = new Date(task.nextDueDate || calculateNextDueDate(task.recurrence, now));
+    const details = {
+      dueTime: task.dueTime,
+      weekDay: task.weekDay,
+      monthDay: task.monthDay,
+      dueDate: task.dueDate,
+    };
+
+    let anchor = new Date(task.nextDueDate || calculateNextDueDate(task.recurrence, now, details));
     if (isNaN(anchor.getTime())) return;
 
-    // A primeira ocorrência sempre é exibida (pode estar atrasada). As seguintes só
-    // entram quando já estiverem no futuro, evitando empilhar datas passadas de um
-    // ciclo perdido (ex.: tarefa diária atrasada há vários dias).
     let isFirst = true;
     let pushed = 0;
     while (pushed < occurrencesPerTask && anchor.getTime() <= horizonMs) {
@@ -160,7 +250,9 @@ export function getUpcomingOccurrences(tasks, options = {}) {
         pushed += 1;
         isFirst = false;
       }
-      anchor = new Date(calculateNextDueDate(task.recurrence, anchor));
+      const nextStr = calculateNextDueDate(task.recurrence, anchor, details);
+      if (!nextStr) break;
+      anchor = new Date(nextStr);
     }
   });
 
@@ -177,6 +269,12 @@ export function createNormalizedTask(taskInput) {
   const now = new Date();
   const recurrence = taskInput.recurrence || "Única";
   const priority = taskInput.priority || "Média";
+  const details = {
+    dueTime: taskInput.dueTime ?? null,
+    weekDay: taskInput.weekDay != null ? Number(taskInput.weekDay) : null,
+    monthDay: taskInput.monthDay != null ? Number(taskInput.monthDay) : null,
+    dueDate: taskInput.dueDate || null,
+  };
 
   return {
     id: taskInput.id || `t_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -185,9 +283,13 @@ export function createNormalizedTask(taskInput) {
     assigneeId: taskInput.assigneeId || null,
     recurrence: recurrence,
     priority: priority,
+    dueDate: details.dueDate,
+    dueTime: details.dueTime,
+    weekDay: details.weekDay,
+    monthDay: details.monthDay,
     done: false,
     createdAt: now.toISOString(),
     lastCompletedAt: null,
-    nextDueDate: recurrence !== "Única" ? calculateNextDueDate(recurrence, now) : null,
+    nextDueDate: calculateNextDueDate(recurrence, now, details),
   };
 }

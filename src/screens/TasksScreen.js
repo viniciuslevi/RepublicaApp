@@ -23,6 +23,14 @@ import { colors } from "../theme/colors";
 import { useAppData } from "../context/AppDataContext";
 import { useAuth } from "../context/AuthContext";
 
+let DateTimePickerAndroid = null;
+try {
+  const dtp = require("@react-native-community/datetimepicker");
+  DateTimePickerAndroid = dtp.DateTimePickerAndroid || null;
+} catch (e) {
+  DateTimePickerAndroid = null;
+}
+
 /**
  * Definição das pastas de recorrência da moradia.
  */
@@ -115,6 +123,155 @@ function getPriorityConfig(priority) {
     PRIORITY_OPTIONS.find((p) => p.id === priority) ||
     PRIORITY_OPTIONS[1] // Média como padrão
   );
+}
+
+const WEEKDAY_NAMES = [
+  { id: 1, label: "Segunda", short: "Seg" },
+  { id: 2, label: "Terça", short: "Ter" },
+  { id: 3, label: "Quarta", short: "Qua" },
+  { id: 4, label: "Quinta", short: "Qui" },
+  { id: 5, label: "Sexta", short: "Sex" },
+  { id: 6, label: "Sábado", short: "Sáb" },
+  { id: 0, label: "Domingo", short: "Dom" },
+];
+
+function formatDateToBR(dateStrOrObj) {
+  if (!dateStrOrObj) return "";
+  if (typeof dateStrOrObj === "string") {
+    const cleanStr = dateStrOrObj.split("T")[0];
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(cleanStr);
+    if (match) {
+      return `${match[3]}/${match[2]}/${match[1]}`;
+    }
+  }
+  const d = new Date(dateStrOrObj);
+  if (isNaN(d.getTime())) return "";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function normalizeInputDate(val) {
+  if (!val) return null;
+  const str = String(val).trim();
+  const brMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(str);
+  if (brMatch) {
+    const d = String(brMatch[1]).padStart(2, "0");
+    const m = String(brMatch[2]).padStart(2, "0");
+    const y = brMatch[3];
+    return `${y}-${m}-${d}`;
+  }
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(str);
+  if (isoMatch) {
+    return str;
+  }
+  return null;
+}
+
+function normalizeInputTime(val) {
+  if (!val) return null;
+  const str = String(val).trim();
+  const match = /^(\d{1,2}):(\d{2})$/.exec(str);
+  if (!match) return null;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function formatInputDateMask(text) {
+  const cleaned = text.replace(/\D/g, "").slice(0, 8);
+  if (cleaned.length <= 2) return cleaned;
+  if (cleaned.length <= 4) return `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
+  return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4)}`;
+}
+
+function formatInputTimeMask(text) {
+  const cleaned = text.replace(/\D/g, "").slice(0, 4);
+  if (cleaned.length <= 2) return cleaned;
+  return `${cleaned.slice(0, 2)}:${cleaned.slice(2)}`;
+}
+
+function getTodayDateBR() {
+  const d = new Date();
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function getTomorrowDateBR() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function getIn7DaysDateBR() {
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function getScheduleBadgeInfo(item) {
+  if (item.recurrence === "Única") {
+    if (!item.dueDate && !item.dueTime) return null;
+    const parts = [];
+    if (item.dueDate) {
+      parts.push(formatDateToBR(item.dueDate));
+    }
+    if (item.dueTime) {
+      parts.push(`às ${item.dueTime}`);
+    }
+    return {
+      icon: "calendar-outline",
+      text: parts.join(" "),
+      color: colors.gold,
+      bgColor: colors.goldLight,
+      borderColor: colors.gold,
+    };
+  }
+  if (item.recurrence === "Diária") {
+    if (!item.dueTime) return null;
+    return {
+      icon: "time-outline",
+      text: `Todo dia às ${item.dueTime}`,
+      color: colors.accent,
+      bgColor: colors.accentLight,
+      borderColor: colors.accent,
+    };
+  }
+  if (item.recurrence === "Semanal") {
+    const dayObj = WEEKDAY_NAMES.find((w) => w.id === item.weekDay);
+    const prefix = item.weekDay === 0 || item.weekDay === 6 ? "Todo" : "Toda";
+    const dayLabel = dayObj ? `${prefix} ${dayObj.label}` : "Toda semana";
+    const text = item.dueTime ? `${dayLabel} às ${item.dueTime}` : dayLabel;
+    return {
+      icon: "calendar-outline",
+      text,
+      color: colors.primary,
+      bgColor: colors.surface,
+      borderColor: colors.primary,
+    };
+  }
+  if (item.recurrence === "Mensal") {
+    const dayLabel = item.monthDay ? `Todo dia ${item.monthDay}` : "Todo mês";
+    const text = item.dueTime ? `${dayLabel} às ${item.dueTime}` : dayLabel;
+    return {
+      icon: "calendar-number-outline",
+      text,
+      color: "#3B6E8C",
+      bgColor: "#E2EEF5",
+      borderColor: "#3B6E8C",
+    };
+  }
+  return null;
 }
 
 /**
@@ -414,6 +571,7 @@ function TaskCardItem({
     : { marginBottom: 10 };
 
   const priorityConfig = getPriorityConfig(item.priority);
+  const scheduleInfo = getScheduleBadgeInfo(item);
 
   return (
     <Animated.View
@@ -502,6 +660,35 @@ function TaskCardItem({
                   {priorityConfig.label.toUpperCase()}
                 </Text>
               </View>
+
+              {/* Badge de Agendamento/Recorrência (Data / Hora / Dia da Semana / Dia do Mês) */}
+              {scheduleInfo ? (
+                <View
+                  style={[
+                    styles.scheduleBadge,
+                    {
+                      backgroundColor: scheduleInfo.bgColor,
+                      borderColor: scheduleInfo.borderColor,
+                    },
+                    item.done && styles.scheduleBadgeDone,
+                  ]}
+                >
+                  <Ionicons
+                    name={scheduleInfo.icon}
+                    size={11}
+                    color={scheduleInfo.color}
+                  />
+                  <Text
+                    style={[
+                      styles.scheduleBadgeText,
+                      { color: scheduleInfo.color },
+                      item.done && { opacity: 0.7 },
+                    ]}
+                  >
+                    {scheduleInfo.text}
+                  </Text>
+                </View>
+              ) : null}
 
               {/* Destaque "SUA VEZ" para tarefas pendentes do morador atual */}
               {isMyPendingTask && !isSelectedForDeletion ? (
@@ -629,7 +816,16 @@ export default function TasksScreen() {
   const [formRecurrence, setFormRecurrence] = useState("Única");
   const [formPriority, setFormPriority] = useState("Média");
   const [formAssigneeId, setFormAssigneeId] = useState(null);
+  const [formDueDate, setFormDueDate] = useState("");
+  const [formDueTime, setFormDueTime] = useState("");
+  const [formWeekDay, setFormWeekDay] = useState(null);
+  const [formMonthDay, setFormMonthDay] = useState(null);
   const [formError, setFormError] = useState("");
+
+  // Modal Fallback de Horário (para web ou quando o dialog nativo não estiver ativo)
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [tempHour, setTempHour] = useState("12");
+  const [tempMinute, setTempMinute] = useState("00");
 
   const isFocused = useIsFocused();
   const isSelectionMode = selectedTaskIds.length > 0;
@@ -656,6 +852,7 @@ export default function TasksScreen() {
       setModalVisible(false);
       setSelectedTaskIds([]);
       setDeletingTaskIds([]);
+      setTimePickerVisible(false);
     }
   }, [isFocused]);
 
@@ -667,6 +864,73 @@ export default function TasksScreen() {
     }));
   }
 
+  // Abre seletor de Horário nativo do Android ou modal interativo
+  function handleOpenTimePicker() {
+    if (Platform.OS === "android" && DateTimePickerAndroid) {
+      let initialDate = new Date();
+      if (formDueTime) {
+        const parts = formDueTime.split(":");
+        if (parts.length === 2) {
+          initialDate.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+        }
+      }
+      DateTimePickerAndroid.open({
+        value: initialDate,
+        mode: "time",
+        is24Hour: true,
+        onValueChange: (_event, selectedDate) => {
+          if (selectedDate) {
+            const h = String(selectedDate.getHours()).padStart(2, "0");
+            const m = String(selectedDate.getMinutes()).padStart(2, "0");
+            setFormDueTime(`${h}:${m}`);
+            if (formError) setFormError("");
+          }
+        },
+        onDismiss: () => {},
+      });
+    } else {
+      if (formDueTime) {
+        const parts = formDueTime.split(":");
+        if (parts.length === 2) {
+          setTempHour(parts[0].padStart(2, "0"));
+          setTempMinute(parts[1].padStart(2, "0"));
+        }
+      } else {
+        const now = new Date();
+        setTempHour(String(now.getHours()).padStart(2, "0"));
+        setTempMinute("00");
+      }
+      setTimePickerVisible(true);
+    }
+  }
+
+  // Abre seletor de Data nativo do Android
+  function handleOpenDatePicker() {
+    if (Platform.OS === "android" && DateTimePickerAndroid) {
+      let initialDate = new Date();
+      if (formDueDate) {
+        const parts = formDueDate.split("/");
+        if (parts.length === 3) {
+          initialDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+        }
+      }
+      DateTimePickerAndroid.open({
+        value: initialDate,
+        mode: "date",
+        onValueChange: (_event, selectedDate) => {
+          if (selectedDate) {
+            const d = String(selectedDate.getDate()).padStart(2, "0");
+            const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
+            const y = selectedDate.getFullYear();
+            setFormDueDate(`${d}/${m}/${y}`);
+            if (formError) setFormError("");
+          }
+        },
+        onDismiss: () => {},
+      });
+    }
+  }
+
   // Abre modal para Criar Nova Tarefa
   function handleOpenCreateModal(defaultRecurrence = "Única", defaultPriority = "Média") {
     setModalMode("create");
@@ -676,6 +940,10 @@ export default function TasksScreen() {
     setFormRecurrence(defaultRecurrence || "Única");
     setFormPriority(defaultPriority || "Média");
     setFormAssigneeId(currentResidentId || null);
+    setFormDueDate("");
+    setFormDueTime("");
+    setFormWeekDay(null);
+    setFormMonthDay(null);
     setFormError("");
     setModalVisible(true);
   }
@@ -698,6 +966,10 @@ export default function TasksScreen() {
     );
     setFormPriority(task.priority || "Média");
     setFormAssigneeId(task.assigneeId || null);
+    setFormDueDate(task.dueDate ? formatDateToBR(task.dueDate) : "");
+    setFormDueTime(task.dueTime || "");
+    setFormWeekDay(task.weekDay != null ? task.weekDay : null);
+    setFormMonthDay(task.monthDay != null ? Number(task.monthDay) : null);
     setFormError("");
     setModalVisible(true);
   }
@@ -710,7 +982,12 @@ export default function TasksScreen() {
     setFormRecurrence("Única");
     setFormPriority("Média");
     setFormAssigneeId(null);
+    setFormDueDate("");
+    setFormDueTime("");
+    setFormWeekDay(null);
+    setFormMonthDay(null);
     setFormError("");
+    setTimePickerVisible(false);
   }
 
   // Salva criação ou edição de tarefa
@@ -720,16 +997,64 @@ export default function TasksScreen() {
       return;
     }
 
+    let parsedDueDate = null;
+    let parsedDueTime = null;
+    let parsedWeekDay = null;
+    let parsedMonthDay = null;
+
+    if (formDueTime && formDueTime.trim()) {
+      parsedDueTime = normalizeInputTime(formDueTime);
+      if (!parsedDueTime) {
+        setFormError("Horário inválido. Selecione um horário válido.");
+        return;
+      }
+    }
+
+    if (formRecurrence === "Única") {
+      if (formDueDate && formDueDate.trim()) {
+        parsedDueDate = normalizeInputDate(formDueDate);
+        if (!parsedDueDate) {
+          setFormError("Data inválida. Selecione uma data válida.");
+          return;
+        }
+      }
+    } else if (formRecurrence === "Diária") {
+      // Horário opcional (já validado acima)
+    } else if (formRecurrence === "Semanal") {
+      if (formWeekDay === null || formWeekDay === undefined) {
+        setFormError("Selecione o dia da semana para a tarefa semanal.");
+        return;
+      }
+      parsedWeekDay = Number(formWeekDay);
+    } else if (formRecurrence === "Mensal") {
+      if (formMonthDay == null || isNaN(Number(formMonthDay))) {
+        setFormError("Selecione o dia do mês (1 a 31) para a tarefa mensal.");
+        return;
+      }
+      const dayNum = Number(formMonthDay);
+      if (dayNum < 1 || dayNum > 31) {
+        setFormError("Dia do mês deve ser entre 1 e 31.");
+        return;
+      }
+      parsedMonthDay = dayNum;
+    }
+
     triggerSmoothLayoutAnimation();
 
+    const taskPayload = {
+      title: formTitle.trim(),
+      description: formDescription.trim(),
+      assigneeId: formAssigneeId,
+      recurrence: formRecurrence,
+      priority: formPriority,
+      dueDate: parsedDueDate,
+      dueTime: parsedDueTime,
+      weekDay: parsedWeekDay,
+      monthDay: parsedMonthDay,
+    };
+
     if (modalMode === "create") {
-      addTask({
-        title: formTitle.trim(),
-        description: formDescription.trim(),
-        assigneeId: formAssigneeId,
-        recurrence: formRecurrence,
-        priority: formPriority,
-      });
+      addTask(taskPayload);
 
       // Abre a pasta correspondente para visualizar a tarefa criada
       setOpenFolders((prev) => ({
@@ -737,13 +1062,7 @@ export default function TasksScreen() {
         [formRecurrence]: true,
       }));
     } else if (modalMode === "edit" && editingTask) {
-      updateTask(editingTask.id, {
-        title: formTitle.trim(),
-        description: formDescription.trim(),
-        assigneeId: formAssigneeId,
-        recurrence: formRecurrence,
-        priority: formPriority,
-      });
+      updateTask(editingTask.id, taskPayload);
 
       // Abre a pasta para onde a tarefa foi destinada caso tenha mudado
       setOpenFolders((prev) => ({
@@ -1382,6 +1701,387 @@ export default function TasksScreen() {
                   </View>
                 </View>
 
+                {/* Agendamento dinâmico baseado na Recorrência */}
+                {formRecurrence === "Única" && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Agendamento (opcional)</Text>
+                    <Text style={styles.fieldSubLabel}>
+                      Defina a data e o horário para o cumprimento desta tarefa
+                    </Text>
+
+                    {/* Seletor Atraente de Data */}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.pickerTriggerCard,
+                        formDueDate ? styles.pickerTriggerCardActiveDate : null,
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      onPress={handleOpenDatePicker}
+                    >
+                      <View style={styles.pickerTriggerContent}>
+                        <View
+                          style={[
+                            styles.pickerTriggerIconWrap,
+                            formDueDate && styles.pickerTriggerIconWrapActiveDate,
+                          ]}
+                        >
+                          <Ionicons
+                            name="calendar"
+                            size={18}
+                            color={formDueDate ? colors.gold : colors.textMuted}
+                          />
+                        </View>
+                        <View style={styles.pickerTriggerTextWrap}>
+                          <Text
+                            style={[
+                              styles.pickerTriggerValue,
+                              formDueDate && styles.pickerTriggerValueActiveDate,
+                            ]}
+                          >
+                            {formDueDate ? formDueDate : "Definir data da tarefa"}
+                          </Text>
+                          <Text style={styles.pickerTriggerHint}>
+                            {formDueDate
+                              ? "Data agendada • Toque para alterar"
+                              : "Opcional • Toque para selecionar a data"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {formDueDate ? (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            setFormDueDate("");
+                          }}
+                          hitSlop={12}
+                          style={styles.pickerTriggerClearBtn}
+                        >
+                          <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+                        </Pressable>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                      )}
+                    </Pressable>
+
+                    {/* Seletor Atraente de Horário */}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.pickerTriggerCard,
+                        { marginTop: 10 },
+                        formDueTime ? styles.pickerTriggerCardActiveTime : null,
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      onPress={handleOpenTimePicker}
+                    >
+                      <View style={styles.pickerTriggerContent}>
+                        <View
+                          style={[
+                            styles.pickerTriggerIconWrap,
+                            formDueTime && styles.pickerTriggerIconWrapActiveTime,
+                          ]}
+                        >
+                          <Ionicons
+                            name="time"
+                            size={18}
+                            color={formDueTime ? colors.accent : colors.textMuted}
+                          />
+                        </View>
+                        <View style={styles.pickerTriggerTextWrap}>
+                          <Text
+                            style={[
+                              styles.pickerTriggerValue,
+                              formDueTime && styles.pickerTriggerValueActiveTime,
+                            ]}
+                          >
+                            {formDueTime ? `às ${formDueTime}` : "Definir horário (opcional)"}
+                          </Text>
+                          <Text style={styles.pickerTriggerHint}>
+                            {formDueTime
+                              ? "Horário agendado • Toque para alterar"
+                              : "Opcional • Toque para selecionar o horário"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {formDueTime ? (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            setFormDueTime("");
+                          }}
+                          hitSlop={12}
+                          style={styles.pickerTriggerClearBtn}
+                        >
+                          <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+                        </Pressable>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+
+                {formRecurrence === "Diária" && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Horário de cumprimento (opcional)</Text>
+                    <Text style={styles.fieldSubLabel}>
+                      Defina a hora recomendada para realizar esta rotina diária
+                    </Text>
+
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.pickerTriggerCard,
+                        formDueTime ? styles.pickerTriggerCardActiveTime : null,
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      onPress={handleOpenTimePicker}
+                    >
+                      <View style={styles.pickerTriggerContent}>
+                        <View
+                          style={[
+                            styles.pickerTriggerIconWrap,
+                            formDueTime && styles.pickerTriggerIconWrapActiveTime,
+                          ]}
+                        >
+                          <Ionicons
+                            name="time"
+                            size={18}
+                            color={formDueTime ? colors.accent : colors.textMuted}
+                          />
+                        </View>
+                        <View style={styles.pickerTriggerTextWrap}>
+                          <Text
+                            style={[
+                              styles.pickerTriggerValue,
+                              formDueTime && styles.pickerTriggerValueActiveTime,
+                            ]}
+                          >
+                            {formDueTime ? `Todo dia às ${formDueTime}` : "Definir horário (opcional)"}
+                          </Text>
+                          <Text style={styles.pickerTriggerHint}>
+                            {formDueTime
+                              ? "Horário diário definido • Toque para alterar"
+                              : "Opcional • Toque para selecionar o horário"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {formDueTime ? (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            setFormDueTime("");
+                          }}
+                          hitSlop={12}
+                          style={styles.pickerTriggerClearBtn}
+                        >
+                          <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+                        </Pressable>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+
+                {formRecurrence === "Semanal" && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Dia da semana *</Text>
+                    <Text style={styles.fieldSubLabel}>
+                      Selecione em qual dia da semana a tarefa deve ocorrer
+                    </Text>
+
+                    {/* Seletor de dias da semana */}
+                    <View style={styles.weekdayRow}>
+                      {WEEKDAY_NAMES.map((w) => {
+                        const isSelected = formWeekDay === w.id;
+                        return (
+                          <Pressable
+                            key={w.id}
+                            style={[
+                              styles.weekdayChip,
+                              isSelected && styles.weekdayChipActive,
+                            ]}
+                            onPress={() => {
+                              setFormWeekDay(w.id);
+                              if (formError) setFormError("");
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.weekdayChipShort,
+                                isSelected && styles.weekdayChipShortActive,
+                              ]}
+                            >
+                              {w.short}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.weekdayChipFull,
+                                isSelected && styles.weekdayChipFullActive,
+                              ]}
+                            >
+                              {w.label.slice(0, 3)}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    {/* Seletor de Horário */}
+                    <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Horário (opcional)</Text>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.pickerTriggerCard,
+                        formDueTime ? styles.pickerTriggerCardActiveTime : null,
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      onPress={handleOpenTimePicker}
+                    >
+                      <View style={styles.pickerTriggerContent}>
+                        <View
+                          style={[
+                            styles.pickerTriggerIconWrap,
+                            formDueTime && styles.pickerTriggerIconWrapActiveTime,
+                          ]}
+                        >
+                          <Ionicons
+                            name="time"
+                            size={18}
+                            color={formDueTime ? colors.accent : colors.textMuted}
+                          />
+                        </View>
+                        <View style={styles.pickerTriggerTextWrap}>
+                          <Text
+                            style={[
+                              styles.pickerTriggerValue,
+                              formDueTime && styles.pickerTriggerValueActiveTime,
+                            ]}
+                          >
+                            {formDueTime ? `às ${formDueTime}` : "Definir horário (opcional)"}
+                          </Text>
+                          <Text style={styles.pickerTriggerHint}>
+                            {formDueTime
+                              ? "Horário semanal definido • Toque para alterar"
+                              : "Opcional • Toque para selecionar o horário"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {formDueTime ? (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            setFormDueTime("");
+                          }}
+                          hitSlop={12}
+                          style={styles.pickerTriggerClearBtn}
+                        >
+                          <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+                        </Pressable>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+
+                {formRecurrence === "Mensal" && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Dia do mês *</Text>
+                    <Text style={styles.fieldSubLabel}>
+                      Selecione o dia do mês para a execução da tarefa
+                    </Text>
+
+                    {/* Grade completa de 31 dias do mês (sem digitação) */}
+                    <View style={styles.monthDayGrid}>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => {
+                        const isSelected = formMonthDay === day;
+                        return (
+                          <Pressable
+                            key={day}
+                            style={({ pressed }) => [
+                              styles.monthDayChip,
+                              isSelected && styles.monthDayChipActive,
+                              pressed && { opacity: 0.75 },
+                            ]}
+                            onPress={() => {
+                              setFormMonthDay(day);
+                              if (formError) setFormError("");
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.monthDayChipText,
+                                isSelected && styles.monthDayChipTextActive,
+                              ]}
+                            >
+                              {day}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    {/* Seletor de Horário */}
+                    <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Horário (opcional)</Text>
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.pickerTriggerCard,
+                        formDueTime ? styles.pickerTriggerCardActiveTime : null,
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      onPress={handleOpenTimePicker}
+                    >
+                      <View style={styles.pickerTriggerContent}>
+                        <View
+                          style={[
+                            styles.pickerTriggerIconWrap,
+                            formDueTime && styles.pickerTriggerIconWrapActiveTime,
+                          ]}
+                        >
+                          <Ionicons
+                            name="time"
+                            size={18}
+                            color={formDueTime ? colors.accent : colors.textMuted}
+                          />
+                        </View>
+                        <View style={styles.pickerTriggerTextWrap}>
+                          <Text
+                            style={[
+                              styles.pickerTriggerValue,
+                              formDueTime && styles.pickerTriggerValueActiveTime,
+                            ]}
+                          >
+                            {formDueTime ? `às ${formDueTime}` : "Definir horário (opcional)"}
+                          </Text>
+                          <Text style={styles.pickerTriggerHint}>
+                            {formDueTime
+                              ? "Horário mensal definido • Toque para alterar"
+                              : "Opcional • Toque para selecionar o horário"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {formDueTime ? (
+                        <Pressable
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            setFormDueTime("");
+                          }}
+                          hitSlop={12}
+                          style={styles.pickerTriggerClearBtn}
+                        >
+                          <Ionicons name="close-circle" size={22} color={colors.textMuted} />
+                        </Pressable>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+                      )}
+                    </Pressable>
+                  </View>
+                )}
+
                 {/* Campo: Prioridade com identificação em retângulos coloridos */}
                 <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>Prioridade da tarefa</Text>
@@ -1557,6 +2257,116 @@ export default function TasksScreen() {
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal Fallback de Horário (Web / Plataformas alternativas) */}
+      <Modal visible={timePickerVisible} transparent animationType="fade">
+        <Pressable
+          style={styles.timeModalOverlay}
+          onPress={() => setTimePickerVisible(false)}
+        >
+          <Pressable
+            style={styles.timeModalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.timeModalHeader}>
+              <View style={styles.timeModalTitleRow}>
+                <Ionicons name="time" size={20} color={colors.primary} />
+                <Text style={styles.timeModalTitle}>Selecionar Horário</Text>
+              </View>
+              <Pressable
+                onPress={() => setTimePickerVisible(false)}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={22} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            {/* Display do horário selecionado */}
+            <View style={styles.timeDisplayCard}>
+              <Text style={styles.timeDisplayHour}>{tempHour.padStart(2, "0")}</Text>
+              <Text style={styles.timeDisplayColon}>:</Text>
+              <Text style={styles.timeDisplayMinute}>{tempMinute.padStart(2, "0")}</Text>
+            </View>
+
+            {/* Seletor de Horas (00 a 23) */}
+            <Text style={styles.timeSectionLabel}>HORA</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.timeScrollRow}
+            >
+              {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")).map((h) => {
+                const isSelected = tempHour === h;
+                return (
+                  <Pressable
+                    key={h}
+                    style={[
+                      styles.timeWheelChip,
+                      isSelected && styles.timeWheelChipActive,
+                    ]}
+                    onPress={() => setTempHour(h)}
+                  >
+                    <Text
+                      style={[
+                        styles.timeWheelChipText,
+                        isSelected && styles.timeWheelChipTextActive,
+                      ]}
+                    >
+                      {h}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {/* Seletor de Minutos (de 5 em 5) */}
+            <Text style={[styles.timeSectionLabel, { marginTop: 14 }]}>MINUTOS</Text>
+            <View style={styles.minuteGrid}>
+              {["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map((m) => {
+                const isSelected = tempMinute === m;
+                return (
+                  <Pressable
+                    key={m}
+                    style={[
+                      styles.minuteChip,
+                      isSelected && styles.minuteChipActive,
+                    ]}
+                    onPress={() => setTempMinute(m)}
+                  >
+                    <Text
+                      style={[
+                        styles.minuteChipText,
+                        isSelected && styles.minuteChipTextActive,
+                      ]}
+                    >
+                      {m}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.timeModalActions}>
+              <PrimaryButton
+                title="Confirmar horário"
+                onPress={() => {
+                  const h = tempHour.padStart(2, "0");
+                  const m = tempMinute.padStart(2, "0");
+                  setFormDueTime(`${h}:${m}`);
+                  setTimePickerVisible(false);
+                  if (formError) setFormError("");
+                }}
+              />
+              <Pressable
+                style={styles.timeCancelBtn}
+                onPress={() => setTimePickerVisible(false)}
+              >
+                <Text style={styles.timeCancelBtnText}>Cancelar</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </SafeAreaView>
   );
@@ -2386,5 +3196,309 @@ const styles = StyleSheet.create({
   residentNameActive: {
     color: colors.primary,
     fontWeight: "700",
+  },
+  // Estilos de Agendamento e Badges
+  scheduleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 2.5,
+    paddingHorizontal: 7,
+    borderRadius: 6,
+    borderWidth: 1,
+    gap: 4,
+  },
+  scheduleBadgeDone: {
+    opacity: 0.65,
+  },
+  scheduleBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  fieldSubLabel: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginBottom: 8,
+    marginTop: -2,
+    lineHeight: 16,
+  },
+
+  // Interactive Picker Trigger Cards (Substitui inputs de texto e sugestões)
+  pickerTriggerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: "#D2DFD8",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 6,
+  },
+  pickerTriggerCardActiveTime: {
+    backgroundColor: "rgba(15, 118, 110, 0.05)",
+    borderColor: colors.accent,
+  },
+  pickerTriggerCardActiveDate: {
+    backgroundColor: "rgba(10, 37, 64, 0.04)",
+    borderColor: colors.primary,
+  },
+  pickerTriggerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  pickerTriggerIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#E8EFF5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickerTriggerIconWrapActiveTime: {
+    backgroundColor: "rgba(15, 118, 110, 0.15)",
+  },
+  pickerTriggerIconWrapActiveDate: {
+    backgroundColor: "rgba(10, 37, 64, 0.12)",
+  },
+  pickerTriggerTextWrap: {
+    flex: 1,
+  },
+  pickerTriggerValue: {
+    fontSize: 14.5,
+    fontWeight: "600",
+    color: colors.textDark,
+  },
+  pickerTriggerValueActiveTime: {
+    color: colors.accent,
+    fontWeight: "700",
+  },
+  pickerTriggerValueActiveDate: {
+    color: colors.primary,
+    fontWeight: "700",
+  },
+  pickerTriggerHint: {
+    fontSize: 11.5,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  pickerTriggerClearBtn: {
+    padding: 6,
+    marginLeft: 6,
+  },
+
+  // Seletor Semanal (Dias da semana)
+  weekdayRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 4,
+    marginTop: 4,
+  },
+  weekdayChip: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 9,
+    paddingHorizontal: 2,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#D2DFD8",
+    backgroundColor: colors.surface,
+  },
+  weekdayChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  weekdayChipShort: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.textDark,
+  },
+  weekdayChipShortActive: {
+    color: colors.white,
+    fontWeight: "800",
+  },
+  weekdayChipFull: {
+    fontSize: 8.5,
+    color: colors.textMuted,
+    marginTop: 2,
+  },
+  weekdayChipFullActive: {
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+
+  // Grade de 31 dias do mês (Recorrência Mensal)
+  monthDayGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 6,
+  },
+  monthDayChip: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+    borderColor: "#D2DFD8",
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  monthDayChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  monthDayChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textDark,
+  },
+  monthDayChipTextActive: {
+    color: colors.white,
+    fontWeight: "800",
+  },
+
+  // Modal Fallback de Horário
+  timeModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  timeModalContent: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 20,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+  },
+  timeModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  timeModalTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  timeModalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: colors.textDark,
+  },
+  timeDisplayCard: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(10, 37, 64, 0.05)",
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginBottom: 16,
+    gap: 4,
+  },
+  timeDisplayHour: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: colors.primary,
+    letterSpacing: 1,
+  },
+  timeDisplayColon: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  timeDisplayMinute: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: colors.primary,
+    letterSpacing: 1,
+  },
+  timeSectionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.textMuted,
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  timeScrollRow: {
+    flexDirection: "row",
+    gap: 6,
+    paddingVertical: 2,
+  },
+  timeWheelChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#D2DFD8",
+    backgroundColor: colors.surface,
+    minWidth: 42,
+    alignItems: "center",
+  },
+  timeWheelChipActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  timeWheelChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textDark,
+  },
+  timeWheelChipTextActive: {
+    color: colors.white,
+    fontWeight: "800",
+  },
+  minuteGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  minuteChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#D2DFD8",
+    backgroundColor: colors.surface,
+    alignItems: "center",
+  },
+  minuteChipActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  minuteChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.textDark,
+  },
+  minuteChipTextActive: {
+    color: colors.white,
+    fontWeight: "800",
+  },
+  timeModalActions: {
+    marginTop: 20,
+    gap: 8,
+  },
+  timeCancelBtn: {
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  timeCancelBtnText: {
+    fontSize: 14,
+    color: colors.textMuted,
+    fontWeight: "600",
   },
 });

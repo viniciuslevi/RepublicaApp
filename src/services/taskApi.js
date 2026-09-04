@@ -12,6 +12,10 @@ function normalizeTask(raw) {
     done: raw.done,
     lastCompletedAt: raw.lastCompletedAt || null,
     nextDueDate: raw.nextDueDate || null,
+    dueDate: raw.dueDate || null,
+    dueTime: raw.dueTime || null,
+    weekDay: raw.weekDay != null ? raw.weekDay : null,
+    monthDay: raw.monthDay != null ? raw.monthDay : null,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
