@@ -1,9 +1,14 @@
 import React, { createContext, useContext, useMemo, useState, useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { initialExpenses, initialShoppingItems } from "../data/mock";
 import { residenceService } from "../services/residenceService";
 import { taskApi } from "../services/taskApi";
 import { expenseApi } from "../services/expenseApi";
 import { useAuth } from "./AuthContext";
+
+function premiumPlanStorageKey(residenceId) {
+  return `premium_plan_${residenceId}`;
+}
 
 const AppDataContext = createContext(null);
 
@@ -20,6 +25,10 @@ export function AppDataProvider({ children }) {
   const [serverBalances, setServerBalances] = useState(null);
   const [shoppingItems, setShoppingItems] = useState(initialShoppingItems);
 
+  // Plano premium simulado: não existe ainda no backend (Epic 6), então é
+  // guardado localmente por residência via AsyncStorage — sem cobrança real.
+  const [isPremium, setIsPremium] = useState(false);
+
   // Ao logar, carrega a lista de residências do usuário; ao deslogar, limpa tudo
   useEffect(() => {
     if (!isAuthenticated) {
@@ -29,6 +38,7 @@ export function AppDataProvider({ children }) {
       setTasks([]);
       setExpenses([]);
       setServerBalances(null);
+      setIsPremium(false);
       return;
     }
     residenceService.list().catch((error) => {
@@ -48,28 +58,45 @@ export function AppDataProvider({ children }) {
   const loadResidenceDetail = useCallback(async (residenceId) => {
     setIsLoadingResidence(true);
     try {
-      const [{ residence, members }, fetchedTasks, fetchedExpenses, fetchedBalances] = await Promise.all([
-        residenceService.getDetail(residenceId),
-        taskApi.list(residenceId),
-        expenseApi.list(residenceId).catch((error) => {
-          console.warn("Falha ao carregar despesas:", error.message);
-          return [];
-        }),
-        expenseApi.getBalances(residenceId).catch((error) => {
-          console.warn("Falha ao carregar saldos:", error.message);
-          return null;
-        }),
-      ]);
+      const [{ residence, members }, fetchedTasks, fetchedExpenses, fetchedBalances, storedPlan] =
+        await Promise.all([
+          residenceService.getDetail(residenceId),
+          taskApi.list(residenceId),
+          expenseApi.list(residenceId).catch((error) => {
+            console.warn("Falha ao carregar despesas:", error.message);
+            return [];
+          }),
+          expenseApi.getBalances(residenceId).catch((error) => {
+            console.warn("Falha ao carregar saldos:", error.message);
+            return null;
+          }),
+          AsyncStorage.getItem(premiumPlanStorageKey(residenceId)).catch(() => null),
+        ]);
       setActiveResidence(residence);
       setResidents(members);
       setTasks(fetchedTasks);
       setExpenses(fetchedExpenses || []);
       setServerBalances(fetchedBalances);
+      setIsPremium(storedPlan === "premium");
       return residence;
     } finally {
       setIsLoadingResidence(false);
     }
   }, []);
+
+  // Simula a contratação/cancelamento do plano premium, sem gateway de pagamento
+  // real — apenas marca a residência atual como premium localmente (SCRUM-25).
+  async function upgradeToPremium() {
+    if (!activeResidence) return;
+    await AsyncStorage.setItem(premiumPlanStorageKey(activeResidence.id), "premium").catch(() => {});
+    setIsPremium(true);
+  }
+
+  async function downgradeToFree() {
+    if (!activeResidence) return;
+    await AsyncStorage.setItem(premiumPlanStorageKey(activeResidence.id), "free").catch(() => {});
+    setIsPremium(false);
+  }
 
   function selectResidence(residence) {
     return loadResidenceDetail(residence.id);
@@ -286,6 +313,9 @@ export function AppDataProvider({ children }) {
     shoppingItems,
     addShoppingItem,
     toggleShoppingItemPurchased,
+    isPremium,
+    upgradeToPremium,
+    downgradeToFree,
   };
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
