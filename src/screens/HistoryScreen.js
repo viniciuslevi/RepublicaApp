@@ -1,0 +1,419 @@
+import React, { useMemo, useState } from "react";
+import { View, Text, Pressable, StyleSheet, FlatList, Platform, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+
+import SubScreenHeader from "../components/SubScreenHeader";
+import { colors } from "../theme/colors";
+import { useAppData } from "../context/AppDataContext";
+
+let DateTimePickerAndroid = null;
+try {
+  const dtp = require("@react-native-community/datetimepicker");
+  DateTimePickerAndroid = dtp.DateTimePickerAndroid || null;
+} catch (e) {
+  DateTimePickerAndroid = null;
+}
+
+const TYPE_FILTERS = [
+  { id: "all", label: "Todos" },
+  { id: "task", label: "Tarefas" },
+  { id: "expense", label: "Despesas" },
+];
+
+function formatDateLabel(dateLike) {
+  const d = new Date(dateLike);
+  if (isNaN(d.getTime())) return "";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${d.getFullYear()}`;
+}
+
+function formatCurrency(value) {
+  const num = typeof value === "number" ? value : Number(value) || 0;
+  return `R$ ${num.toFixed(2).replace(".", ",")}`;
+}
+
+/** Combina tarefas concluídas e despesas em uma única linha do tempo, ordenada
+ * por data (mais recente primeiro). Tarefas usam lastCompletedAt como data de
+ * referência (fallback para updatedAt/createdAt); despesas usam seu próprio date. */
+export function buildHistoryEntries(tasks, expenses) {
+  const taskEntries = (tasks || [])
+    .filter((t) => t.done)
+    .map((t) => ({
+      type: "task",
+      id: `task_${t.id}`,
+      title: t.title,
+      date: t.lastCompletedAt || t.updatedAt || t.createdAt,
+      personId: t.assigneeId || null,
+    }));
+
+  const expenseEntries = (expenses || []).map((e) => ({
+    type: "expense",
+    id: `expense_${e.id}`,
+    title: e.description,
+    date: e.date || e.createdAt,
+    personId: e.payerId || null,
+    value: e.value,
+  }));
+
+  return [...taskEntries, ...expenseEntries]
+    .filter((entry) => entry.date && !isNaN(new Date(entry.date).getTime()))
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+/** Aplica os filtros de tipo, morador e intervalo de datas sobre as entradas do histórico. */
+export function filterHistoryEntries(entries, { type, residentId, dateFrom, dateTo }) {
+  return entries.filter((entry) => {
+    if (type && type !== "all" && entry.type !== type) return false;
+    if (residentId && entry.personId !== residentId) return false;
+
+    const entryDate = new Date(entry.date);
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      if (entryDate < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      if (entryDate > to) return false;
+    }
+    return true;
+  });
+}
+
+export default function HistoryScreen() {
+  const { tasks, expenses, residents, residentById } = useAppData();
+
+  const [filterType, setFilterType] = useState("all");
+  const [filterResidentId, setFilterResidentId] = useState(null);
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
+
+  const entries = useMemo(() => buildHistoryEntries(tasks, expenses), [tasks, expenses]);
+
+  const filteredEntries = useMemo(
+    () =>
+      filterHistoryEntries(entries, {
+        type: filterType,
+        residentId: filterResidentId,
+        dateFrom,
+        dateTo,
+      }),
+    [entries, filterType, filterResidentId, dateFrom, dateTo]
+  );
+
+  const hasActiveFilters =
+    filterType !== "all" || !!filterResidentId || !!dateFrom || !!dateTo;
+
+  function clearFilters() {
+    setFilterType("all");
+    setFilterResidentId(null);
+    setDateFrom(null);
+    setDateTo(null);
+  }
+
+  function openDatePicker(kind) {
+    const current = kind === "from" ? dateFrom : dateTo;
+    const onPick = kind === "from" ? setDateFrom : setDateTo;
+
+    if (Platform.OS === "android" && DateTimePickerAndroid) {
+      DateTimePickerAndroid.open({
+        value: current || new Date(),
+        mode: "date",
+        onValueChange: (_event, selectedDate) => {
+          if (selectedDate) onPick(selectedDate);
+        },
+        onDismiss: () => {},
+      });
+    } else if (Platform.OS === "web" && typeof window !== "undefined") {
+      const input = window.prompt(
+        `Informe a data ${kind === "from" ? "inicial" : "final"} (DD/MM/AAAA):`,
+        current ? formatDateLabel(current) : ""
+      );
+      if (input) {
+        const parts = input.trim().split("/");
+        if (parts.length === 3) {
+          const parsed = new Date(
+            parseInt(parts[2], 10),
+            parseInt(parts[1], 10) - 1,
+            parseInt(parts[0], 10)
+          );
+          if (!isNaN(parsed.getTime())) onPick(parsed);
+        }
+      }
+    }
+  }
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
+      <SubScreenHeader
+        kicker="RESIDÊNCIA"
+        title="Histórico"
+        subtitle="Tarefas concluídas e despesas registradas"
+      />
+
+      <View style={styles.filtersWrap}>
+        <View style={styles.filterRow}>
+          {TYPE_FILTERS.map((f) => (
+            <Pressable
+              key={f.id}
+              style={[styles.typeChip, filterType === f.id && styles.typeChipActive]}
+              onPress={() => setFilterType(f.id)}
+            >
+              <Text
+                style={[
+                  styles.typeChipText,
+                  filterType === f.id && styles.typeChipTextActive,
+                ]}
+              >
+                {f.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.residentScroll}
+          contentContainerStyle={styles.residentScrollContent}
+        >
+          <Pressable
+            style={[
+              styles.residentChip,
+              !filterResidentId && styles.residentChipActive,
+            ]}
+            onPress={() => setFilterResidentId(null)}
+          >
+            <Text
+              style={[
+                styles.residentChipText,
+                !filterResidentId && styles.residentChipTextActive,
+              ]}
+            >
+              Todos os moradores
+            </Text>
+          </Pressable>
+          {residents.map((r) => (
+            <Pressable
+              key={r.id}
+              style={[
+                styles.residentChip,
+                filterResidentId === r.id && styles.residentChipActive,
+              ]}
+              onPress={() => setFilterResidentId(r.id)}
+            >
+              <Text
+                style={[
+                  styles.residentChipText,
+                  filterResidentId === r.id && styles.residentChipTextActive,
+                ]}
+              >
+                {r.name}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <View style={styles.dateRow}>
+          <Pressable style={styles.dateField} onPress={() => openDatePicker("from")}>
+            <Ionicons name="calendar-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.dateFieldText} numberOfLines={1}>
+              {dateFrom ? formatDateLabel(dateFrom) : "De"}
+            </Text>
+          </Pressable>
+          <Pressable style={styles.dateField} onPress={() => openDatePicker("to")}>
+            <Ionicons name="calendar-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.dateFieldText} numberOfLines={1}>
+              {dateTo ? formatDateLabel(dateTo) : "Até"}
+            </Text>
+          </Pressable>
+          {hasActiveFilters ? (
+            <Pressable style={styles.clearBtn} onPress={clearFilters}>
+              <Ionicons name="close-circle" size={14} color={colors.danger} />
+              <Text style={styles.clearBtnText}>Limpar</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+
+      <FlatList
+        style={styles.body}
+        data={filteredEntries}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            <Ionicons
+              name={hasActiveFilters ? "filter-outline" : "time-outline"}
+              size={36}
+              color="#BDD0C6"
+            />
+            <Text style={styles.emptyText}>
+              {entries.length === 0
+                ? "Sem histórico por enquanto."
+                : "Nenhum resultado para os filtros aplicados."}
+            </Text>
+            <Text style={styles.emptySubtext}>
+              {entries.length === 0
+                ? "Tarefas concluídas e despesas registradas vão aparecer aqui."
+                : "Tente ajustar ou limpar os filtros selecionados."}
+            </Text>
+            {hasActiveFilters ? (
+              <Pressable style={styles.emptyClearBtn} onPress={clearFilters}>
+                <Text style={styles.emptyClearBtnText}>Limpar filtros</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        }
+        renderItem={({ item }) => {
+          const person = item.personId ? residentById[item.personId] : null;
+          const isTask = item.type === "task";
+          return (
+            <View style={styles.entryCard}>
+              <View
+                style={[
+                  styles.entryIconWrap,
+                  { backgroundColor: isTask ? colors.accentLight : colors.goldLight },
+                ]}
+              >
+                <Ionicons
+                  name={isTask ? "checkmark-circle" : "cash"}
+                  size={17}
+                  color={isTask ? colors.accent : colors.gold}
+                />
+              </View>
+              <View style={styles.entryInfo}>
+                <Text style={styles.entryTitle} numberOfLines={2}>
+                  {item.title}
+                </Text>
+                <Text style={styles.entryMeta}>
+                  {isTask ? "Tarefa concluída" : "Despesa"}
+                  {person ? ` · ${isTask ? "por" : "pago por"} ${person.name}` : ""}
+                  {" · "}
+                  {formatDateLabel(item.date)}
+                </Text>
+              </View>
+              {!isTask ? (
+                <Text style={styles.entryValue}>{formatCurrency(item.value)}</Text>
+              ) : null}
+            </View>
+          );
+        }}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.primary },
+  body: { flex: 1, backgroundColor: colors.background },
+  listContent: { padding: 16, paddingTop: 12, paddingBottom: 40 },
+
+  filtersWrap: {
+    backgroundColor: colors.background,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E6ECE9",
+    paddingBottom: 10,
+  },
+  filterRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
+  typeChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+  },
+  typeChipActive: { backgroundColor: colors.accentLight, borderWidth: 1, borderColor: colors.accent },
+  typeChipText: { fontSize: 12.5, fontWeight: "600", color: colors.textMuted },
+  typeChipTextActive: { color: colors.primary },
+
+  residentScroll: { marginBottom: 10 },
+  residentScrollContent: { gap: 8, paddingRight: 8 },
+  residentChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+  },
+  residentChipActive: { backgroundColor: colors.accentLight, borderWidth: 1, borderColor: colors.accent },
+  residentChipText: { fontSize: 12.5, fontWeight: "600", color: colors.textMuted },
+  residentChipTextActive: { color: colors.primary },
+
+  dateRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dateField: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    flex: 1,
+  },
+  dateFieldText: { fontSize: 12.5, color: colors.textDark, fontWeight: "600" },
+  clearBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 4 },
+  clearBtnText: { fontSize: 12, color: colors.danger, fontWeight: "700" },
+
+  emptyBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    paddingHorizontal: 24,
+  },
+  emptyText: {
+    fontSize: 14.5,
+    fontWeight: "700",
+    color: colors.textDark,
+    marginTop: 10,
+    textAlign: "center",
+  },
+  emptySubtext: {
+    fontSize: 12.5,
+    color: colors.textMuted,
+    marginTop: 4,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  emptyClearBtn: {
+    marginTop: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+  },
+  emptyClearBtnText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
+
+  entryCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: "#E6ECE9",
+    shadowColor: "#000",
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  entryIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  entryInfo: { flex: 1, marginRight: 8 },
+  entryTitle: { fontSize: 14, fontWeight: "700", color: colors.textDark, lineHeight: 18 },
+  entryMeta: { fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
+  entryValue: { fontSize: 14, fontWeight: "800", color: colors.primary },
+});

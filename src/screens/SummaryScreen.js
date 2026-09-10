@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { View, Text, FlatList, StyleSheet, RefreshControl } from "react-native";
+import { View, Text, Pressable, FlatList, StyleSheet, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 
 import { Ionicons } from "@expo/vector-icons";
 import ScreenHeader from "../components/ScreenHeader";
@@ -15,6 +16,7 @@ function formatCurrency(value) {
 }
 
 export default function SummaryScreen() {
+  const navigation = useNavigation();
   const { balances, totalExpenses, refreshBalances } = useAppData();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -44,6 +46,20 @@ export default function SummaryScreen() {
             Resumo meramente informativo — não há integração bancária nem cobrança automática.
           </Text>
         </View>
+
+        <Pressable
+          style={({ pressed }) => [styles.historyLink, pressed && { opacity: 0.8 }]}
+          onPress={() => navigation.navigate("History")}
+        >
+          <View style={styles.historyLinkIconWrap}>
+            <Ionicons name="time-outline" size={18} color={colors.primary} />
+          </View>
+          <View style={styles.historyLinkBody}>
+            <Text style={styles.historyLinkTitle}>Ver histórico completo</Text>
+            <Text style={styles.historyLinkSub}>Tarefas concluídas e despesas anteriores</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </Pressable>
 
         <FlatList
           data={balances}
@@ -104,6 +120,29 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   noticeText: { color: colors.textMuted, fontSize: 12.5, marginLeft: 8, flex: 1, lineHeight: 17 },
+  historyLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: "#E6ECE9",
+  },
+  historyLinkIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: colors.accentLight,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  historyLinkBody: { flex: 1 },
+  historyLinkTitle: { fontSize: 14, fontWeight: "700", color: colors.textDark },
+  historyLinkSub: { fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
   list: { padding: 16, paddingTop: 8, paddingBottom: 40 },
   empty: { textAlign: "center", color: colors.textMuted, marginTop: 30 },
   row: {
