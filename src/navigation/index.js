@@ -18,6 +18,7 @@ import MembersScreen from "../screens/MembersScreen";
 import UpcomingOccurrencesScreen from "../screens/UpcomingOccurrencesScreen";
 import ShoppingListScreen from "../screens/ShoppingListScreen";
 import PremiumUpgradeScreen from "../screens/PremiumUpgradeScreen";
+import PremiumFeaturesScreen from "../screens/PremiumFeaturesScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -87,6 +88,7 @@ export default function RootNavigator() {
         <Stack.Screen name="Members" component={MembersScreen} />
         <Stack.Screen name="UpcomingOccurrences" component={UpcomingOccurrencesScreen} />
         <Stack.Screen name="PremiumUpgrade" component={PremiumUpgradeScreen} />
+        <Stack.Screen name="PremiumFeatures" component={PremiumFeaturesScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
