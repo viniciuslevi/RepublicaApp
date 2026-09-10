@@ -34,6 +34,11 @@ export default function ScreenHeader({
     navigation.navigate("Members");
   }
 
+  function handlePremiumUpgrade() {
+    setModalVisible(false);
+    navigation.navigate("PremiumUpgrade");
+  }
+
   return (
     <View style={styles.wrap}>
       <View style={styles.topRow}>
@@ -111,6 +116,20 @@ export default function ScreenHeader({
                 <View style={styles.menuTextWrap}>
                   <Text style={styles.menuTitle}>Gerenciar Moradores</Text>
                   <Text style={styles.menuSub}>Ver ou remover moradores da república</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </Pressable>
+
+              <Pressable
+                style={styles.menuOption}
+                onPress={handlePremiumUpgrade}
+              >
+                <View style={styles.menuIconWrap}>
+                  <Ionicons name="star" size={20} color={colors.gold} />
+                </View>
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuTitle}>Plano Premium</Text>
+                  <Text style={styles.menuSub}>Comparar planos e simular upgrade</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               </Pressable>
