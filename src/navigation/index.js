@@ -17,6 +17,7 @@ import SummaryScreen from "../screens/SummaryScreen";
 import MembersScreen from "../screens/MembersScreen";
 import UpcomingOccurrencesScreen from "../screens/UpcomingOccurrencesScreen";
 import ShoppingListScreen from "../screens/ShoppingListScreen";
+import HistoryScreen from "../screens/HistoryScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -85,6 +86,7 @@ export default function RootNavigator() {
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="Members" component={MembersScreen} />
         <Stack.Screen name="UpcomingOccurrences" component={UpcomingOccurrencesScreen} />
+        <Stack.Screen name="History" component={HistoryScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
