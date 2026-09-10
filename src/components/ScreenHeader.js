@@ -39,6 +39,11 @@ export default function ScreenHeader({
     navigation.navigate("PremiumUpgrade");
   }
 
+  function handlePremiumFeatures() {
+    setModalVisible(false);
+    navigation.navigate("PremiumFeatures");
+  }
+
   return (
     <View style={styles.wrap}>
       <View style={styles.topRow}>
@@ -116,6 +121,20 @@ export default function ScreenHeader({
                 <View style={styles.menuTextWrap}>
                   <Text style={styles.menuTitle}>Gerenciar Moradores</Text>
                   <Text style={styles.menuSub}>Ver ou remover moradores da república</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </Pressable>
+
+              <Pressable
+                style={styles.menuOption}
+                onPress={handlePremiumFeatures}
+              >
+                <View style={styles.menuIconWrap}>
+                  <Ionicons name="sparkles" size={20} color={colors.gold} />
+                </View>
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuTitle}>Recursos Premium</Text>
+                  <Text style={styles.menuSub}>Relatórios, lembretes e grupos maiores</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               </Pressable>
