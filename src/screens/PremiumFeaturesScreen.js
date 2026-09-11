@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,6 +14,7 @@ const FEATURES = [
     icon: "stats-chart",
     title: "Relatórios avançados",
     description: "Totais de gastos e tarefas concluídas por morador em um período.",
+    route: "Reports",
   },
   {
     icon: "notifications",
@@ -31,6 +32,14 @@ export default function PremiumFeaturesScreen() {
   const navigation = useNavigation();
   const { isPremium } = useAppData();
 
+  function handleFeaturePress(feature) {
+    if (feature.route) {
+      navigation.navigate(feature.route);
+    } else if (!isPremium) {
+      navigation.navigate("PremiumUpgrade");
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <SubScreenHeader
@@ -41,7 +50,14 @@ export default function PremiumFeaturesScreen() {
 
       <ScrollView style={styles.body} contentContainerStyle={styles.scrollContent}>
         {FEATURES.map((f) => (
-          <View key={f.title} style={styles.featureCard}>
+          <Pressable
+            key={f.title}
+            style={({ pressed }) => [
+              styles.featureCard,
+              pressed && { opacity: 0.8 },
+            ]}
+            onPress={() => handleFeaturePress(f)}
+          >
             <View
               style={[
                 styles.featureIconWrap,
@@ -57,23 +73,34 @@ export default function PremiumFeaturesScreen() {
             <View style={styles.featureBody}>
               <Text style={styles.featureTitle}>{f.title}</Text>
               <Text style={styles.featureDescription}>{f.description}</Text>
+              {f.route && isPremium ? (
+                <Text style={styles.featureLinkText}>Toque para abrir relatório →</Text>
+              ) : null}
             </View>
             <Ionicons
-              name={isPremium ? "checkmark-circle" : "lock-closed"}
+              name={isPremium ? (f.route ? "chevron-forward" : "checkmark-circle") : "lock-closed"}
               size={18}
               color={isPremium ? colors.accent : colors.textMuted}
             />
-          </View>
+          </Pressable>
         ))}
 
         {isPremium ? (
-          <View style={styles.unlockedBox}>
-            <Ionicons name="star" size={18} color={colors.gold} />
-            <Text style={styles.unlockedText}>
-              Esta república é Premium (simulado) — os recursos acima estão
-              desbloqueados, mesmo que ainda usem dados de exemplo.
-            </Text>
-          </View>
+          <>
+            <View style={styles.unlockedBox}>
+              <Ionicons name="star" size={18} color={colors.gold} />
+              <Text style={styles.unlockedText}>
+                Esta república é Premium (simulado) — você tem acesso aos relatórios completos
+                por período e todos os recursos avançados.
+              </Text>
+            </View>
+
+            <PrimaryButton
+              title="Acessar Relatório de Gastos e Tarefas"
+              onPress={() => navigation.navigate("Reports")}
+              style={{ marginTop: 12 }}
+            />
+          </>
         ) : (
           <>
             <View style={styles.lockedBox}>
@@ -120,6 +147,7 @@ const styles = StyleSheet.create({
   featureBody: { flex: 1, marginRight: 8 },
   featureTitle: { fontSize: 14.5, fontWeight: "700", color: colors.textDark },
   featureDescription: { fontSize: 12, color: colors.textMuted, marginTop: 2, lineHeight: 16 },
+  featureLinkText: { fontSize: 12, color: colors.accent, fontWeight: "700", marginTop: 6 },
 
   lockedBox: {
     flexDirection: "row",

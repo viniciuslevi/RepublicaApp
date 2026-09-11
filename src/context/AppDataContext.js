@@ -77,25 +77,32 @@ export function AppDataProvider({ children }) {
       setTasks(fetchedTasks);
       setExpenses(fetchedExpenses || []);
       setServerBalances(fetchedBalances);
-      setIsPremium(storedPlan === "premium");
+      setIsPremium(residence?.plan === "premium" || storedPlan === "premium");
       return residence;
     } finally {
       setIsLoadingResidence(false);
     }
   }, []);
 
-  // Simula a contratação/cancelamento do plano premium, sem gateway de pagamento
-  // real — apenas marca a residência atual como premium localmente (SCRUM-25).
+  // Simula a contratação/cancelamento do plano premium, sincronizando no backend e localmente
   async function upgradeToPremium() {
     if (!activeResidence) return;
-    await AsyncStorage.setItem(premiumPlanStorageKey(activeResidence.id), "premium").catch(() => {});
+    await Promise.all([
+      AsyncStorage.setItem(premiumPlanStorageKey(activeResidence.id), "premium").catch(() => {}),
+      residenceService.updatePlan(activeResidence.id, "premium").catch(() => {}),
+    ]);
     setIsPremium(true);
+    setActiveResidence((prev) => (prev ? { ...prev, plan: "premium" } : prev));
   }
 
   async function downgradeToFree() {
     if (!activeResidence) return;
-    await AsyncStorage.setItem(premiumPlanStorageKey(activeResidence.id), "free").catch(() => {});
+    await Promise.all([
+      AsyncStorage.setItem(premiumPlanStorageKey(activeResidence.id), "free").catch(() => {}),
+      residenceService.updatePlan(activeResidence.id, "free").catch(() => {}),
+    ]);
     setIsPremium(false);
+    setActiveResidence((prev) => (prev ? { ...prev, plan: "free" } : prev));
   }
 
   function selectResidence(residence) {
