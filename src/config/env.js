@@ -9,6 +9,13 @@
  * também para testar num dispositivo físico na mesma rede, onde "localhost"
  * apontaria para o próprio celular, não para o computador que roda o backend.
  */
+import { Platform } from "react-native";
+
 const PRODUCTION_API_URL = "https://republica-backend-bo50.onrender.com";
 
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL;
+const rawUrl = process.env.EXPO_PUBLIC_API_URL || PRODUCTION_API_URL;
+
+export const API_BASE_URL =
+  Platform.OS === "web" && rawUrl.includes("10.0.2.2")
+    ? rawUrl.replace("10.0.2.2", "localhost")
+    : rawUrl;

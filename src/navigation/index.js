@@ -20,6 +20,7 @@ import ShoppingListScreen from "../screens/ShoppingListScreen";
 import PremiumUpgradeScreen from "../screens/PremiumUpgradeScreen";
 import PremiumFeaturesScreen from "../screens/PremiumFeaturesScreen";
 import HistoryScreen from "../screens/HistoryScreen";
+import ReportsScreen from "../screens/ReportsScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -91,6 +92,7 @@ export default function RootNavigator() {
         <Stack.Screen name="PremiumUpgrade" component={PremiumUpgradeScreen} />
         <Stack.Screen name="PremiumFeatures" component={PremiumFeaturesScreen} />
         <Stack.Screen name="History" component={HistoryScreen} />
+        <Stack.Screen name="Reports" component={ReportsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

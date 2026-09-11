@@ -51,4 +51,12 @@ export const residenceService = {
     const data = await apiRequest(`/residences/${residenceId}/members/${memberId}`, { method: "DELETE" });
     return normalizeResidence(data);
   },
+
+  async updatePlan(residenceId, plan) {
+    const data = await apiRequest(`/residences/${residenceId}/plan`, {
+      method: "PATCH",
+      body: { plan },
+    });
+    return normalizeResidence(data);
+  },
 };
