@@ -26,6 +26,7 @@ export default function SelectResidenceScreen({ navigation }) {
   const [newAddress, setNewAddress] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [limitBlocked, setLimitBlocked] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSelect(residence) {
@@ -62,16 +63,25 @@ export default function SelectResidenceScreen({ navigation }) {
   async function handleJoin() {
     if (!code.trim()) {
       setError("Informe o código de convite.");
+      setLimitBlocked(null);
       return;
     }
     setIsSubmitting(true);
+    setLimitBlocked(null);
     try {
       const result = await joinResidence(code);
       if (!result.success) {
-        setError(result.error || "Código inválido. Tente novamente.");
+        if (result.isLimitReached) {
+          setLimitBlocked({ message: result.error });
+          setError("");
+        } else {
+          setError(result.error || "Código inválido. Tente novamente.");
+          setLimitBlocked(null);
+        }
         return;
       }
       setError("");
+      setLimitBlocked(null);
       setCode("");
       navigation.replace("Main");
     } finally {
@@ -320,10 +330,38 @@ export default function SelectResidenceScreen({ navigation }) {
                   onChangeText={(t) => {
                     setCode(t);
                     if (error) setError("");
+                    if (limitBlocked) setLimitBlocked(null);
                   }}
                 />
 
-                {error ? (
+                {limitBlocked ? (
+                  <View style={styles.limitBlockedCard}>
+                    <View style={styles.limitBlockedHeader}>
+                      <View style={styles.limitBlockedIconWrap}>
+                        <Ionicons name="sparkles" size={22} color={colors.gold} />
+                      </View>
+                      <View style={styles.limitBlockedHeaderText}>
+                        <Text style={styles.limitBlockedTitle}>Limite de Moradores Atingido</Text>
+                        <Text style={styles.limitBlockedTag}>Plano Gratuito (Máximo 6)</Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.limitBlockedMessage}>{limitBlocked.message}</Text>
+
+                    <View style={styles.limitBenefitBox}>
+                      <Ionicons name="infinite" size={18} color={colors.accent} />
+                      <Text style={styles.limitBenefitText}>
+                        No <Text style={{ fontWeight: "700" }}>Plano Premium</Text>, o limite é removido e a república aceita membros ilimitados.
+                      </Text>
+                    </View>
+
+                    <PrimaryButton
+                      title="Conhecer o Plano Premium"
+                      onPress={() => navigation.navigate("PremiumUpgrade")}
+                      style={{ marginTop: 8 }}
+                    />
+                  </View>
+                ) : error ? (
                   <View style={styles.errorBox}>
                     <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
                     <Text style={styles.errorText}>{error}</Text>
@@ -343,6 +381,7 @@ export default function SelectResidenceScreen({ navigation }) {
                   onPress={() => {
                     setMode("list");
                     setError("");
+                    setLimitBlocked(null);
                   }}
                   style={{ marginTop: 10 }}
                 />
@@ -611,5 +650,67 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     marginTop: 18,
+  },
+  limitBlockedCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 14,
+    borderWidth: 1.5,
+    borderColor: "#F0E6D2",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  limitBlockedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  limitBlockedIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FEF7E6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  limitBlockedHeaderText: {
+    flex: 1,
+  },
+  limitBlockedTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  limitBlockedTag: {
+    fontSize: 11.5,
+    fontWeight: "600",
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  limitBlockedMessage: {
+    fontSize: 13,
+    color: colors.textDark,
+    lineHeight: 18,
+    marginVertical: 6,
+  },
+  limitBenefitBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F4F7F5",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    gap: 8,
+    marginVertical: 10,
+  },
+  limitBenefitText: {
+    fontSize: 12,
+    color: colors.textDark,
+    flex: 1,
+    lineHeight: 16,
   },
 });

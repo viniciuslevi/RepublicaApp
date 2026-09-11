@@ -123,7 +123,15 @@ export function AppDataProvider({ children }) {
       await loadResidenceDetail(joined.id);
       return { success: true, residence: joined };
     } catch (error) {
-      return { success: false, error: error.message || "Código de convite inválido ou não encontrado." };
+      const isLimitReached =
+        error.status === 403 ||
+        error.statusCode === 403 ||
+        (error.message && error.message.toLowerCase().includes("limite"));
+      return {
+        success: false,
+        error: error.message || "Código de convite inválido ou não encontrado.",
+        isLimitReached,
+      };
     }
   }
 

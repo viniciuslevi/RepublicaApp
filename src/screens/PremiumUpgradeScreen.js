@@ -53,7 +53,7 @@ export default function PremiumUpgradeScreen() {
       <SubScreenHeader
         kicker="RESIDÊNCIA"
         title="Plano Premium"
-        subtitle={activeResidence?.name}
+        subtitle={activeResidence?.name || "Comparativo de Benefícios"}
       />
 
       <ScrollView style={styles.body} contentContainerStyle={styles.scrollContent}>
@@ -110,9 +110,9 @@ export default function PremiumUpgradeScreen() {
           </>
         ) : (
           <PrimaryButton
-            title={isSubmitting ? "Assinando..." : "Assinar Premium"}
+            title={!activeResidence ? "Selecione uma república para assinar" : isSubmitting ? "Assinando..." : "Assinar Premium"}
             onPress={handleUpgrade}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !activeResidence}
             style={{ marginTop: 8 }}
           />
         )}
