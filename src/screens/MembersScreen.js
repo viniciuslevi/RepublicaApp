@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
+import { useNavigation } from "@react-navigation/native";
 import SubScreenHeader from "../components/SubScreenHeader";
 import Avatar from "../components/Avatar";
 import PrimaryButton from "../components/PrimaryButton";
@@ -11,8 +12,9 @@ import { useAppData } from "../context/AppDataContext";
 import { useAuth } from "../context/AuthContext";
 
 export default function MembersScreen() {
+  const navigation = useNavigation();
   const { user } = useAuth();
-  const { residents, activeResidence, removeResident } = useAppData();
+  const { residents, activeResidence, removeResident, isPremium } = useAppData();
   const [pendingRemoval, setPendingRemoval] = useState(null);
   const [error, setError] = useState("");
   const [isRemoving, setIsRemoving] = useState(false);
@@ -69,6 +71,58 @@ export default function MembersScreen() {
               : "Apenas o administrador da república pode remover moradores."}
           </Text>
         </View>
+
+        {/* Status de Capacidade e Limite de Moradores (SCRUM-102) */}
+        {isPremium ? (
+          <View style={styles.premiumCapacityCard}>
+            <Ionicons name="sparkles" size={18} color={colors.gold} />
+            <View style={styles.capacityTextWrap}>
+              <Text style={styles.capacityTitle}>Plano Premium Ativo</Text>
+              <Text style={styles.capacitySub}>
+                Capacidade ilimitada de moradores ({residents.length} membros no grupo).
+              </Text>
+            </View>
+          </View>
+        ) : residents.length >= 6 ? (
+          <View style={styles.limitReachedWarningCard}>
+            <View style={styles.warningHeader}>
+              <Ionicons name="alert-circle" size={20} color="#D97706" />
+              <View style={styles.capacityTextWrap}>
+                <Text style={styles.warningTitle}>Limite de Moradores Atingido (6/6)</Text>
+                <Text style={styles.warningSub}>
+                  O plano gratuito permite até 6 moradores. Novos membros que tentarem entrar por código serão bloqueados até o upgrade.
+                </Text>
+              </View>
+            </View>
+            <PrimaryButton
+              title="Fazer upgrade para Premium (ilimitado)"
+              onPress={() => navigation.navigate("PremiumUpgrade")}
+              style={{ marginTop: 10 }}
+            />
+          </View>
+        ) : (
+          <View style={styles.capacityCard}>
+            <View style={styles.capacityHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="people" size={16} color={colors.primary} />
+                <Text style={styles.capacityTitle}>
+                  {residents.length} de 6 moradores (Plano Gratuito)
+                </Text>
+              </View>
+              <Pressable onPress={() => navigation.navigate("PremiumUpgrade")}>
+                <Text style={styles.capacityUpgradeLink}>Ilimitado no Premium →</Text>
+              </Pressable>
+            </View>
+            <View style={styles.progressBarBg}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  { width: `${Math.min((residents.length / 6) * 100, 100)}%` },
+                ]}
+              />
+            </View>
+          </View>
+        )}
 
         {error ? (
           <View style={styles.errorBox}>
@@ -272,4 +326,85 @@ const styles = StyleSheet.create({
   },
   confirmTextBold: { fontWeight: "800", color: colors.textDark },
   confirmDeleteBtn: { backgroundColor: colors.danger, marginTop: 18, width: "100%" },
+
+  // Estilos de Capacidade e Limite (SCRUM-102)
+  capacityCard: {
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: "#E3ECE7",
+  },
+  capacityHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  capacityTitle: {
+    fontSize: 12.5,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  capacityUpgradeLink: {
+    fontSize: 11.5,
+    fontWeight: "700",
+    color: colors.accent,
+  },
+  progressBarBg: {
+    height: 6,
+    backgroundColor: colors.surface,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: colors.accent,
+    borderRadius: 3,
+  },
+  limitReachedWarningCard: {
+    backgroundColor: "#FFFBEB",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: "#FDE68A",
+  },
+  warningHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  warningTitle: {
+    fontSize: 13.5,
+    fontWeight: "800",
+    color: "#B45309",
+  },
+  warningSub: {
+    fontSize: 12,
+    color: "#92400E",
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  premiumCapacityCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: "#F0E6D2",
+    gap: 10,
+  },
+  capacityTextWrap: {
+    flex: 1,
+  },
+  capacitySub: {
+    fontSize: 12,
+    color: colors.textMuted,
+    marginTop: 1,
+    lineHeight: 16,
+  },
 });
