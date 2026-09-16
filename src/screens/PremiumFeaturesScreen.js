@@ -20,6 +20,7 @@ const FEATURES = [
     icon: "notifications",
     title: "Automação de lembretes",
     description: "Avisos automáticos próximo ao vencimento de tarefas recorrentes.",
+    route: "TaskReminders",
   },
   {
     icon: "people",
@@ -74,7 +75,7 @@ export default function PremiumFeaturesScreen() {
               <Text style={styles.featureTitle}>{f.title}</Text>
               <Text style={styles.featureDescription}>{f.description}</Text>
               {f.route && isPremium ? (
-                <Text style={styles.featureLinkText}>Toque para abrir relatório →</Text>
+                <Text style={styles.featureLinkText}>Toque para abrir →</Text>
               ) : null}
             </View>
             <Ionicons

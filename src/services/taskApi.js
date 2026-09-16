@@ -52,4 +52,10 @@ export const taskApi = {
     const data = await apiRequest(`/residences/${residenceId}/tasks/${taskId}/reopen`, { method: "POST" });
     return normalizeTask(data);
   },
+
+  /** Automação de lembretes (recurso premium, SCRUM-27): tarefas recorrentes atrasadas/próximas do vencimento. */
+  async getReminders(residenceId, { windowHours } = {}) {
+    const queryStr = windowHours ? `?windowHours=${encodeURIComponent(windowHours)}` : "";
+    return apiRequest(`/residences/${residenceId}/tasks/reminders${queryStr}`);
+  },
 };
