@@ -16,6 +16,7 @@ import ExpensesScreen from "../screens/ExpensesScreen";
 import SummaryScreen from "../screens/SummaryScreen";
 import MembersScreen from "../screens/MembersScreen";
 import UpcomingOccurrencesScreen from "../screens/UpcomingOccurrencesScreen";
+import TaskRemindersScreen from "../screens/TaskRemindersScreen";
 import ShoppingListScreen from "../screens/ShoppingListScreen";
 import PremiumUpgradeScreen from "../screens/PremiumUpgradeScreen";
 import PremiumFeaturesScreen from "../screens/PremiumFeaturesScreen";
@@ -89,6 +90,7 @@ export default function RootNavigator() {
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="Members" component={MembersScreen} />
         <Stack.Screen name="UpcomingOccurrences" component={UpcomingOccurrencesScreen} />
+        <Stack.Screen name="TaskReminders" component={TaskRemindersScreen} />
         <Stack.Screen name="PremiumUpgrade" component={PremiumUpgradeScreen} />
         <Stack.Screen name="PremiumFeatures" component={PremiumFeaturesScreen} />
         <Stack.Screen name="History" component={HistoryScreen} />
