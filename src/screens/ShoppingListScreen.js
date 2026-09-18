@@ -18,7 +18,11 @@ import { colors } from "../theme/colors";
 import { useAppData } from "../context/AppDataContext";
 import { useAuth } from "../context/AuthContext";
 
-function ShoppingItemCard({ item, addedBy, onToggle }) {
+function ShoppingItemCard({ item, residentById, onToggle, onRemove }) {
+  const author =
+    item.addedBy ||
+    (item.addedById && residentById ? residentById[item.addedById]?.name : null);
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -47,13 +51,26 @@ function ShoppingItemCard({ item, addedBy, onToggle }) {
           {item.name}
         </Text>
         <Text style={styles.itemMeta}>
-          {addedBy ? `Adicionado por ${addedBy.name}` : "Adicionado por alguém da casa"}
+          {author
+            ? `Adicionado por ${author}`
+            : "Adicionado por alguém da casa"}
         </Text>
       </View>
+
       {item.quantity ? (
-        <View style={[styles.quantityBadge, item.purchased && styles.quantityBadgeDone]}>
+        <View
+          style={[
+            styles.quantityBadge,
+            item.purchased && styles.quantityBadgeDone,
+          ]}
+        >
           <Text style={styles.quantityBadgeText}>{item.quantity}</Text>
         </View>
+      ) : null}
+      {onRemove ? (
+        <Pressable onPress={onRemove} style={styles.removeBtn} hitSlop={10}>
+          <Ionicons name="trash-outline" size={16} color={colors.textMuted} />
+        </Pressable>
       ) : null}
     </Pressable>
   );
@@ -67,40 +84,45 @@ export default function ShoppingListScreen() {
     residentById,
     addShoppingItem,
     toggleShoppingItemPurchased,
+    removeShoppingItem,
   } = useAppData();
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [error, setError] = useState("");
 
-  const currentResidentId = useMemo(() => {
-    if (!user) return residents[0]?.id ?? null;
+  const currentResidentName = useMemo(() => {
+    if (!user) return residents[0]?.name ?? "Morador";
     const match = residents.find(
       (r) =>
         r.id === user.id ||
-        (r.email && user.email && r.email.toLowerCase() === user.email.toLowerCase()) ||
-        (r.name && user.name && r.name.toLowerCase() === user.name.toLowerCase())
+        (r.email &&
+          user.email &&
+          r.email.toLowerCase() === user.email.toLowerCase()) ||
+        (r.name &&
+          user.name &&
+          r.name.toLowerCase() === user.name.toLowerCase()),
     );
-    return match?.id ?? residents[0]?.id ?? null;
+    return match?.name ?? user.name ?? "Morador";
   }, [residents, user]);
 
   const pendingItems = useMemo(
     () => shoppingItems.filter((item) => !item.purchased),
-    [shoppingItems]
+    [shoppingItems],
   );
   const purchasedItems = useMemo(
     () => shoppingItems.filter((item) => item.purchased),
-    [shoppingItems]
+    [shoppingItems],
   );
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!name.trim()) {
       setError("Informe o nome do item.");
       return;
     }
-    addShoppingItem(name, quantity, currentResidentId);
+    setError("");
+    await addShoppingItem(name.trim(), quantity.trim(), currentResidentName);
     setName("");
     setQuantity("");
-    setError("");
   }
 
   return (
@@ -137,19 +159,26 @@ export default function ShoppingListScreen() {
                 onChangeText={setQuantity}
               />
               {error ? <Text style={styles.error}>{error}</Text> : null}
-              <PrimaryButton title="Adicionar item" onPress={handleAdd} style={{ marginTop: 8 }} />
+              <PrimaryButton
+                title="Adicionar item"
+                onPress={handleAdd}
+                style={{ marginTop: 8 }}
+              />
               <Text style={styles.sectionTitle}>Itens pendentes</Text>
             </View>
           }
           renderItem={({ item }) => (
             <ShoppingItemCard
               item={item}
-              addedBy={item.addedById ? residentById[item.addedById] : null}
+              residentById={residentById}
               onToggle={() => toggleShoppingItemPurchased(item.id)}
+              onRemove={() => removeShoppingItem(item.id)}
             />
           )}
           ListEmptyComponent={
-            <Text style={styles.empty}>Nenhum item pendente na lista de compras.</Text>
+            <Text style={styles.empty}>
+              Nenhum item pendente na lista de compras.
+            </Text>
           }
           ListFooterComponent={
             purchasedItems.length > 0 ? (
@@ -159,13 +188,15 @@ export default function ShoppingListScreen() {
                   <ShoppingItemCard
                     key={item.id}
                     item={item}
-                    addedBy={item.addedById ? residentById[item.addedById] : null}
+                    residentById={residentById}
                     onToggle={() => toggleShoppingItemPurchased(item.id)}
+                    onRemove={() => removeShoppingItem(item.id)}
                   />
                 ))}
               </View>
             ) : null
           }
+
         />
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -260,4 +291,5 @@ const styles = StyleSheet.create({
   },
   quantityBadgeDone: { opacity: 0.7 },
   quantityBadgeText: { fontSize: 12, fontWeight: "700", color: colors.primary },
+  removeBtn: { padding: 4, marginLeft: 6 },
 });
