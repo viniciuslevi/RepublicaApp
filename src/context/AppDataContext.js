@@ -371,27 +371,18 @@ export function AppDataProvider({ children }) {
     const item = shoppingItems.find((i) => i.id === itemId);
     if (!item) return;
 
+    const newPurchased = !item.purchased;
+
     // Atualização otimista
     setShoppingItems((prev) =>
       prev.map((i) =>
-        i.id === itemId ? { ...i, purchased: !i.purchased } : i,
+        i.id === itemId ? { ...i, purchased: newPurchased } : i,
       ),
     );
 
     try {
-      if (!item.purchased) {
-        await shoppingApi.markAsPurchased(itemId);
-      }
-      // Se já estava comprado e o usuário desmarca, recarrega a lista do servidor
-      // pois o backend não tem endpoint de "desmarcar". A lista é atualizada em background.
-      if (item.purchased) {
-        shoppingApi
-          .list(activeResidence.id)
-          .then((items) => setShoppingItems(items))
-          .catch(() => {});
-      }
+      await shoppingApi.setPurchased(activeResidence.id, itemId, newPurchased);
     } catch (error) {
-      // Reverte a atualização otimista em caso de falha
       console.warn("Falha ao atualizar item de compras:", error.message);
       setShoppingItems((prev) =>
         prev.map((i) =>
@@ -405,11 +396,12 @@ export function AppDataProvider({ children }) {
     if (!activeResidence) return;
     setShoppingItems((prev) => prev.filter((i) => i.id !== itemId));
     shoppingApi
-      .remove(itemId)
+      .remove(activeResidence.id, itemId)
       .catch((error) =>
         console.warn("Falha ao remover item de compras:", error.message),
       );
   }
+
 
   const totalExpenses = useMemo(() => {
     if (expenses.length === 0) return 0;

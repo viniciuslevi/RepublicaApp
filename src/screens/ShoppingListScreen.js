@@ -18,7 +18,11 @@ import { colors } from "../theme/colors";
 import { useAppData } from "../context/AppDataContext";
 import { useAuth } from "../context/AuthContext";
 
-function ShoppingItemCard({ item, onToggle, onRemove }) {
+function ShoppingItemCard({ item, residentById, onToggle, onRemove }) {
+  const author =
+    item.addedBy ||
+    (item.addedById && residentById ? residentById[item.addedById]?.name : null);
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -47,11 +51,12 @@ function ShoppingItemCard({ item, onToggle, onRemove }) {
           {item.name}
         </Text>
         <Text style={styles.itemMeta}>
-          {item.addedBy
-            ? `Adicionado por ${item.addedBy}`
+          {author
+            ? `Adicionado por ${author}`
             : "Adicionado por alguém da casa"}
         </Text>
       </View>
+
       {item.quantity ? (
         <View
           style={[
@@ -165,6 +170,7 @@ export default function ShoppingListScreen() {
           renderItem={({ item }) => (
             <ShoppingItemCard
               item={item}
+              residentById={residentById}
               onToggle={() => toggleShoppingItemPurchased(item.id)}
               onRemove={() => removeShoppingItem(item.id)}
             />
@@ -182,6 +188,7 @@ export default function ShoppingListScreen() {
                   <ShoppingItemCard
                     key={item.id}
                     item={item}
+                    residentById={residentById}
                     onToggle={() => toggleShoppingItemPurchased(item.id)}
                     onRemove={() => removeShoppingItem(item.id)}
                   />
@@ -189,6 +196,7 @@ export default function ShoppingListScreen() {
               </View>
             ) : null
           }
+
         />
       </KeyboardAvoidingView>
     </SafeAreaView>
