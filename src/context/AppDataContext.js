@@ -156,23 +156,48 @@ export function AppDataProvider({ children }) {
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
 
+    const nextDone = !task.done;
+    const nextStatus = nextDone ? "Feito" : "A fazer";
+
+    // Atualização otimista
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, done: nextDone, status: nextStatus } : t))
+    );
+
     const action = task.done ? taskApi.reopen : taskApi.complete;
     action(activeResidence.id, taskId)
       .then((updated) => setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t))))
       .catch((error) => console.warn("Falha ao atualizar tarefa:", error.message));
   }
 
+  function updateTaskStatus(taskId, newStatus) {
+    if (!activeResidence) return;
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const isDone = newStatus === "Feito" || newStatus === "Cancelada";
+    // Atualização otimista imediata
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, done: isDone } : t))
+    );
+
+    taskApi
+      .updateStatus(activeResidence.id, taskId, newStatus)
+      .then((updated) => setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t))))
+      .catch((error) => console.warn("Falha ao atualizar status da tarefa:", error.message));
+  }
+
   function assignTask(taskId, residentId) {
     updateTask(taskId, { assigneeId: residentId });
   }
 
-  function addTask(titleOrData, recurrence = "Única", assigneeId = null, description = "", priority = "Média") {
+  function addTask(titleOrData, recurrence = "Única", assigneeId = null, description = "", priority = "Média", status = "A fazer") {
     if (!activeResidence) return null;
 
     const input =
       typeof titleOrData === "object" && titleOrData !== null
         ? titleOrData
-        : { title: titleOrData, description, assigneeId, recurrence, priority };
+        : { title: titleOrData, description, assigneeId, recurrence, priority, status };
 
     taskApi
       .create(activeResidence.id, input)
@@ -184,8 +209,13 @@ export function AppDataProvider({ children }) {
   function updateTask(taskId, updatedData) {
     if (!activeResidence) return null;
 
+    let optimisticPatch = { ...updatedData };
+    if (updatedData.status) {
+      optimisticPatch.done = updatedData.status === "Feito" || updatedData.status === "Cancelada";
+    }
+
     // Atualização otimista: a UI responde na hora, e é reconciliada com a resposta do servidor
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updatedData } : t)));
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...optimisticPatch } : t)));
     taskApi
       .update(activeResidence.id, taskId, updatedData)
       .then((updated) => setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t))))
@@ -314,6 +344,7 @@ export function AppDataProvider({ children }) {
     removeResident,
     tasks,
     toggleTaskDone,
+    updateTaskStatus,
     assignTask,
     addTask,
     updateTask,
