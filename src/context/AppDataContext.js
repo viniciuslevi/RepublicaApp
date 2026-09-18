@@ -1,9 +1,16 @@
-import React, { createContext, useContext, useMemo, useState, useEffect, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { initialExpenses, initialShoppingItems } from "../data/mock";
 import { residenceService } from "../services/residenceService";
 import { taskApi } from "../services/taskApi";
 import { expenseApi } from "../services/expenseApi";
+import { shoppingApi } from "../services/shoppingApi";
 import { useAuth } from "./AuthContext";
 
 function premiumPlanStorageKey(residenceId) {
@@ -23,7 +30,7 @@ export function AppDataProvider({ children }) {
 
   const [expenses, setExpenses] = useState([]);
   const [serverBalances, setServerBalances] = useState(null);
-  const [shoppingItems, setShoppingItems] = useState(initialShoppingItems);
+  const [shoppingItems, setShoppingItems] = useState([]);
 
   // Plano premium simulado: não existe ainda no backend (Epic 6), então é
   // guardado localmente por residência via AsyncStorage — sem cobrança real.
@@ -38,13 +45,18 @@ export function AppDataProvider({ children }) {
       setTasks([]);
       setExpenses([]);
       setServerBalances(null);
+      setShoppingItems([]);
       setIsPremium(false);
       return;
     }
-    residenceService.list().catch((error) => {
-      console.warn("Falha ao carregar residências:", error.message);
-      return [];
-    }).then((list) => list && setResidences(list));
+
+    residenceService
+      .list()
+      .catch((error) => {
+        console.warn("Falha ao carregar residências:", error.message);
+        return [];
+      })
+      .then((list) => list && setResidences(list));
   }, [isAuthenticated]);
 
   const residentById = useMemo(() => {
@@ -58,25 +70,38 @@ export function AppDataProvider({ children }) {
   const loadResidenceDetail = useCallback(async (residenceId) => {
     setIsLoadingResidence(true);
     try {
-      const [{ residence, members }, fetchedTasks, fetchedExpenses, fetchedBalances, storedPlan] =
-        await Promise.all([
-          residenceService.getDetail(residenceId),
-          taskApi.list(residenceId),
-          expenseApi.list(residenceId).catch((error) => {
-            console.warn("Falha ao carregar despesas:", error.message);
-            return [];
-          }),
-          expenseApi.getBalances(residenceId).catch((error) => {
-            console.warn("Falha ao carregar saldos:", error.message);
-            return null;
-          }),
-          AsyncStorage.getItem(premiumPlanStorageKey(residenceId)).catch(() => null),
-        ]);
+      const [
+        { residence, members },
+        fetchedTasks,
+        fetchedExpenses,
+        fetchedBalances,
+        fetchedShopping,
+        storedPlan,
+      ] = await Promise.all([
+        residenceService.getDetail(residenceId),
+        taskApi.list(residenceId),
+        expenseApi.list(residenceId).catch((error) => {
+          console.warn("Falha ao carregar despesas:", error.message);
+          return [];
+        }),
+        expenseApi.getBalances(residenceId).catch((error) => {
+          console.warn("Falha ao carregar saldos:", error.message);
+          return null;
+        }),
+        shoppingApi.list(residenceId).catch((error) => {
+          console.warn("Falha ao carregar lista de compras:", error.message);
+          return [];
+        }),
+        AsyncStorage.getItem(premiumPlanStorageKey(residenceId)).catch(
+          () => null,
+        ),
+      ]);
       setActiveResidence(residence);
       setResidents(members);
       setTasks(fetchedTasks);
       setExpenses(fetchedExpenses || []);
       setServerBalances(fetchedBalances);
+      setShoppingItems(fetchedShopping || []);
       setIsPremium(residence?.plan === "premium" || storedPlan === "premium");
       return residence;
     } finally {
@@ -88,8 +113,13 @@ export function AppDataProvider({ children }) {
   async function upgradeToPremium() {
     if (!activeResidence) return;
     await Promise.all([
-      AsyncStorage.setItem(premiumPlanStorageKey(activeResidence.id), "premium").catch(() => {}),
-      residenceService.updatePlan(activeResidence.id, "premium").catch(() => {}),
+      AsyncStorage.setItem(
+        premiumPlanStorageKey(activeResidence.id),
+        "premium",
+      ).catch(() => {}),
+      residenceService
+        .updatePlan(activeResidence.id, "premium")
+        .catch(() => {}),
     ]);
     setIsPremium(true);
     setActiveResidence((prev) => (prev ? { ...prev, plan: "premium" } : prev));
@@ -98,7 +128,10 @@ export function AppDataProvider({ children }) {
   async function downgradeToFree() {
     if (!activeResidence) return;
     await Promise.all([
-      AsyncStorage.setItem(premiumPlanStorageKey(activeResidence.id), "free").catch(() => {}),
+      AsyncStorage.setItem(
+        premiumPlanStorageKey(activeResidence.id),
+        "free",
+      ).catch(() => {}),
       residenceService.updatePlan(activeResidence.id, "free").catch(() => {}),
     ]);
     setIsPremium(false);
@@ -119,7 +152,9 @@ export function AppDataProvider({ children }) {
   async function joinResidence(code) {
     try {
       const joined = await residenceService.join(code);
-      setResidences((prev) => (prev.some((r) => r.id === joined.id) ? prev : [joined, ...prev]));
+      setResidences((prev) =>
+        prev.some((r) => r.id === joined.id) ? prev : [joined, ...prev],
+      );
       await loadResidenceDetail(joined.id);
       return { success: true, residence: joined };
     } catch (error) {
@@ -143,11 +178,16 @@ export function AppDataProvider({ children }) {
       await residenceService.removeMember(activeResidence.id, residentId);
       setResidents((prev) => prev.filter((r) => r.id !== residentId));
       setTasks((prev) =>
-        prev.map((t) => (t.assigneeId === residentId ? { ...t, assigneeId: null } : t))
+        prev.map((t) =>
+          t.assigneeId === residentId ? { ...t, assigneeId: null } : t,
+        ),
       );
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.message || "Não foi possível remover o morador." };
+      return {
+        success: false,
+        error: error.message || "Não foi possível remover o morador.",
+      };
     }
   }
 
@@ -158,15 +198,25 @@ export function AppDataProvider({ children }) {
 
     const action = task.done ? taskApi.reopen : taskApi.complete;
     action(activeResidence.id, taskId)
-      .then((updated) => setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t))))
-      .catch((error) => console.warn("Falha ao atualizar tarefa:", error.message));
+      .then((updated) =>
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t))),
+      )
+      .catch((error) =>
+        console.warn("Falha ao atualizar tarefa:", error.message),
+      );
   }
 
   function assignTask(taskId, residentId) {
     updateTask(taskId, { assigneeId: residentId });
   }
 
-  function addTask(titleOrData, recurrence = "Única", assigneeId = null, description = "", priority = "Média") {
+  function addTask(
+    titleOrData,
+    recurrence = "Única",
+    assigneeId = null,
+    description = "",
+    priority = "Média",
+  ) {
     if (!activeResidence) return null;
 
     const input =
@@ -185,18 +235,28 @@ export function AppDataProvider({ children }) {
     if (!activeResidence) return null;
 
     // Atualização otimista: a UI responde na hora, e é reconciliada com a resposta do servidor
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updatedData } : t)));
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, ...updatedData } : t)),
+    );
     taskApi
       .update(activeResidence.id, taskId, updatedData)
-      .then((updated) => setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t))))
-      .catch((error) => console.warn("Falha ao atualizar tarefa:", error.message));
+      .then((updated) =>
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? updated : t))),
+      )
+      .catch((error) =>
+        console.warn("Falha ao atualizar tarefa:", error.message),
+      );
     return null;
   }
 
   function deleteTask(taskId) {
     if (!activeResidence) return true;
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    taskApi.remove(activeResidence.id, taskId).catch((error) => console.warn("Falha ao excluir tarefa:", error.message));
+    taskApi
+      .remove(activeResidence.id, taskId)
+      .catch((error) =>
+        console.warn("Falha ao excluir tarefa:", error.message),
+      );
     return true;
   }
 
@@ -205,7 +265,11 @@ export function AppDataProvider({ children }) {
     const idSet = new Set(taskIds);
     setTasks((prev) => prev.filter((t) => !idSet.has(t.id)));
     taskIds.forEach((id) =>
-      taskApi.remove(activeResidence.id, id).catch((error) => console.warn("Falha ao excluir tarefa:", error.message))
+      taskApi
+        .remove(activeResidence.id, id)
+        .catch((error) =>
+          console.warn("Falha ao excluir tarefa:", error.message),
+        ),
     );
     return true;
   }
@@ -216,7 +280,9 @@ export function AppDataProvider({ children }) {
     taskApi
       .list(activeResidence.id)
       .then(setTasks)
-      .catch((error) => console.warn("Falha ao recarregar tarefas:", error.message));
+      .catch((error) =>
+        console.warn("Falha ao recarregar tarefas:", error.message),
+      );
   }
 
   const refreshBalances = useCallback(async () => {
@@ -235,7 +301,12 @@ export function AppDataProvider({ children }) {
     }
   }, [activeResidence, expenses]);
 
-  async function addExpense(description, value, payerId, participantIds = null) {
+  async function addExpense(
+    description,
+    value,
+    payerId,
+    participantIds = null,
+  ) {
     if (!activeResidence) return null;
     const cleanParticipantIds =
       participantIds && participantIds.length > 0
@@ -249,24 +320,72 @@ export function AppDataProvider({ children }) {
       participantIds: cleanParticipantIds,
     });
     setExpenses((prev) => [created, ...prev]);
-    expenseApi.getBalances(activeResidence.id).then((b) => b && setServerBalances(b)).catch(() => {});
+    expenseApi
+      .getBalances(activeResidence.id)
+      .then((b) => b && setServerBalances(b))
+      .catch(() => {});
     return created;
   }
 
-  function addShoppingItem(name, quantity = "", addedById = null) {
-    const id = `s${Date.now()}`;
-    setShoppingItems((prev) => [
-      { id, name: name.trim(), quantity: (quantity || "").trim(), addedById, purchased: false },
-      ...prev,
-    ]);
+  async function addShoppingItem(name, quantity = "", addedBy = null) {
+    if (!activeResidence) return null;
+    try {
+      const created = await shoppingApi.create(activeResidence.id, {
+        name,
+        quantity,
+        addedBy: addedBy || "Morador",
+      });
+      setShoppingItems((prev) => [created, ...prev]);
+      return created;
+    } catch (error) {
+      console.warn("Falha ao adicionar item de compras:", error.message);
+      return null;
+    }
   }
 
-  function toggleShoppingItemPurchased(itemId) {
+  async function toggleShoppingItemPurchased(itemId) {
+    if (!activeResidence) return;
+    const item = shoppingItems.find((i) => i.id === itemId);
+    if (!item) return;
+
+    // Atualização otimista
     setShoppingItems((prev) =>
-      prev.map((item) =>
-        item.id === itemId ? { ...item, purchased: !item.purchased } : item
-      )
+      prev.map((i) =>
+        i.id === itemId ? { ...i, purchased: !i.purchased } : i,
+      ),
     );
+
+    try {
+      if (!item.purchased) {
+        await shoppingApi.markAsPurchased(itemId);
+      }
+      // Se já estava comprado e o usuário desmarca, recarrega a lista do servidor
+      // pois o backend não tem endpoint de "desmarcar". A lista é atualizada em background.
+      if (item.purchased) {
+        shoppingApi
+          .list(activeResidence.id)
+          .then((items) => setShoppingItems(items))
+          .catch(() => {});
+      }
+    } catch (error) {
+      // Reverte a atualização otimista em caso de falha
+      console.warn("Falha ao atualizar item de compras:", error.message);
+      setShoppingItems((prev) =>
+        prev.map((i) =>
+          i.id === itemId ? { ...i, purchased: item.purchased } : i,
+        ),
+      );
+    }
+  }
+
+  async function removeShoppingItem(itemId) {
+    if (!activeResidence) return;
+    setShoppingItems((prev) => prev.filter((i) => i.id !== itemId));
+    shoppingApi
+      .remove(itemId)
+      .catch((error) =>
+        console.warn("Falha ao remover item de compras:", error.message),
+      );
   }
 
   const totalExpenses = useMemo(() => {
@@ -280,7 +399,11 @@ export function AppDataProvider({ children }) {
   const balances = useMemo(() => {
     if (residents.length === 0 || expenses.length === 0) return [];
 
-    if (serverBalances && Array.isArray(serverBalances.balances) && serverBalances.balances.length > 0) {
+    if (
+      serverBalances &&
+      Array.isArray(serverBalances.balances) &&
+      serverBalances.balances.length > 0
+    ) {
       return serverBalances.balances;
     }
 
@@ -292,7 +415,9 @@ export function AppDataProvider({ children }) {
 
       const share = expenses.reduce((sum, e) => {
         const participantIds =
-          e.participantIds && e.participantIds.length > 0 ? e.participantIds : allResidentIds;
+          e.participantIds && e.participantIds.length > 0
+            ? e.participantIds
+            : allResidentIds;
         if (!participantIds.includes(r.id)) return sum;
         return sum + e.value / participantIds.length;
       }, 0);
@@ -328,12 +453,16 @@ export function AppDataProvider({ children }) {
     shoppingItems,
     addShoppingItem,
     toggleShoppingItemPurchased,
+    removeShoppingItem,
     isPremium,
+
     upgradeToPremium,
     downgradeToFree,
   };
 
-  return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
+  return (
+    <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>
+  );
 }
 
 export function useAppData() {
