@@ -44,6 +44,11 @@ export default function ScreenHeader({
     navigation.navigate("PremiumFeatures");
   }
 
+  function handleHistory() {
+    setModalVisible(false);
+    navigation.navigate("History");
+  }
+
   return (
     <View style={styles.wrap}>
       <View style={styles.topRow}>
@@ -121,6 +126,20 @@ export default function ScreenHeader({
                 <View style={styles.menuTextWrap}>
                   <Text style={styles.menuTitle}>Gerenciar Moradores</Text>
                   <Text style={styles.menuSub}>Ver ou remover moradores da república</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              </Pressable>
+
+              <Pressable
+                style={styles.menuOption}
+                onPress={handleHistory}
+              >
+                <View style={styles.menuIconWrap}>
+                  <Ionicons name="time" size={20} color={colors.primary} />
+                </View>
+                <View style={styles.menuTextWrap}>
+                  <Text style={styles.menuTitle}>Histórico da Moradia</Text>
+                  <Text style={styles.menuSub}>Tarefas concluídas e despesas anteriores</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
               </Pressable>

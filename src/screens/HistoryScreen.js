@@ -1,11 +1,22 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet, FlatList, Platform, ScrollView } from "react-native";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  FlatList,
+  Platform,
+  ScrollView,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import SubScreenHeader from "../components/SubScreenHeader";
 import { colors } from "../theme/colors";
 import { useAppData } from "../context/AppDataContext";
+import { historyApi } from "../services/historyApi";
 
 let DateTimePickerAndroid = null;
 try {
@@ -44,6 +55,8 @@ export function buildHistoryEntries(tasks, expenses) {
       type: "task",
       id: `task_${t.id}`,
       title: t.title,
+      description: t.title,
+      detail: t.description || "",
       date: t.lastCompletedAt || t.updatedAt || t.createdAt,
       personId: t.assigneeId || null,
     }));
@@ -52,6 +65,7 @@ export function buildHistoryEntries(tasks, expenses) {
     type: "expense",
     id: `expense_${e.id}`,
     title: e.description,
+    description: e.description,
     date: e.date || e.createdAt,
     personId: e.payerId || null,
     value: e.value,
@@ -84,25 +98,59 @@ export function filterHistoryEntries(entries, { type, residentId, dateFrom, date
 }
 
 export default function HistoryScreen() {
-  const { tasks, expenses, residents, residentById } = useAppData();
+  const { activeResidence, tasks, expenses, residents, residentById } = useAppData();
 
   const [filterType, setFilterType] = useState("all");
   const [filterResidentId, setFilterResidentId] = useState(null);
   const [dateFrom, setDateFrom] = useState(null);
   const [dateTo, setDateTo] = useState(null);
 
-  const entries = useMemo(() => buildHistoryEntries(tasks, expenses), [tasks, expenses]);
+  const [serverHistory, setServerHistory] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const filteredEntries = useMemo(
+  // Fallback local caso o backend esteja indisponível ou offline
+  const localEntries = useMemo(() => buildHistoryEntries(tasks, expenses), [tasks, expenses]);
+  const filteredLocalEntries = useMemo(
     () =>
-      filterHistoryEntries(entries, {
+      filterHistoryEntries(localEntries, {
         type: filterType,
         residentId: filterResidentId,
         dateFrom,
         dateTo,
       }),
-    [entries, filterType, filterResidentId, dateFrom, dateTo]
+    [localEntries, filterType, filterResidentId, dateFrom, dateTo]
   );
+
+  const fetchHistory = useCallback(async (isRefresh = false) => {
+    if (!activeResidence?.id) return;
+
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      const data = await historyApi.list(activeResidence.id, {
+        type: filterType,
+        residentId: filterResidentId,
+        dateFrom,
+        dateTo,
+      });
+      setServerHistory(data);
+    } catch (err) {
+      console.warn("Falha ao buscar histórico do backend, usando fallback local:", err.message);
+      setServerHistory(null);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [activeResidence?.id, filterType, filterResidentId, dateFrom, dateTo]);
+
+  useEffect(() => {
+    fetchHistory(false);
+  }, [fetchHistory]);
 
   const hasActiveFilters =
     filterType !== "all" || !!filterResidentId || !!dateFrom || !!dateTo;
@@ -145,6 +193,8 @@ export default function HistoryScreen() {
       }
     }
   }
+
+  const displayedEntries = serverHistory !== null ? serverHistory : filteredLocalEntries;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -241,37 +291,58 @@ export default function HistoryScreen() {
 
       <FlatList
         style={styles.body}
-        data={filteredEntries}
+        data={displayedEntries}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => fetchHistory(true)}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
         ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Ionicons
-              name={hasActiveFilters ? "filter-outline" : "time-outline"}
-              size={36}
-              color="#BDD0C6"
-            />
-            <Text style={styles.emptyText}>
-              {entries.length === 0
-                ? "Sem histórico por enquanto."
-                : "Nenhum resultado para os filtros aplicados."}
-            </Text>
-            <Text style={styles.emptySubtext}>
-              {entries.length === 0
-                ? "Tarefas concluídas e despesas registradas vão aparecer aqui."
-                : "Tente ajustar ou limpar os filtros selecionados."}
-            </Text>
-            {hasActiveFilters ? (
-              <Pressable style={styles.emptyClearBtn} onPress={clearFilters}>
-                <Text style={styles.emptyClearBtnText}>Limpar filtros</Text>
-              </Pressable>
-            ) : null}
-          </View>
+          loading && !refreshing ? (
+            <View style={styles.emptyBox}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Carregando histórico...</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyBox}>
+              <Ionicons
+                name={hasActiveFilters ? "filter-outline" : "time-outline"}
+                size={40}
+                color="#BDD0C6"
+              />
+              <Text style={styles.emptyText}>
+                {hasActiveFilters
+                  ? "Nenhum resultado para os filtros aplicados."
+                  : "Sem histórico"}
+              </Text>
+              <Text style={styles.emptySubtext}>
+                {hasActiveFilters
+                  ? "Tente ajustar ou limpar os filtros selecionados."
+                  : "Nenhuma tarefa concluída ou despesa registrada até o momento."}
+              </Text>
+              {hasActiveFilters ? (
+                <Pressable style={styles.emptyClearBtn} onPress={clearFilters}>
+                  <Text style={styles.emptyClearBtnText}>Limpar filtros</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          )
         }
         renderItem={({ item }) => {
-          const person = item.personId ? residentById[item.personId] : null;
           const isTask = item.type === "task";
+          const person =
+            item.personName ||
+            item.responsible?.name ||
+            item.payer?.name ||
+            (item.personId ? residentById[item.personId]?.name : null);
+          const title = item.description || item.title;
+
           return (
             <View style={styles.entryCard}>
               <View
@@ -282,22 +353,22 @@ export default function HistoryScreen() {
               >
                 <Ionicons
                   name={isTask ? "checkmark-circle" : "cash"}
-                  size={17}
+                  size={18}
                   color={isTask ? colors.accent : colors.gold}
                 />
               </View>
               <View style={styles.entryInfo}>
                 <Text style={styles.entryTitle} numberOfLines={2}>
-                  {item.title}
+                  {title}
                 </Text>
                 <Text style={styles.entryMeta}>
                   {isTask ? "Tarefa concluída" : "Despesa"}
-                  {person ? ` · ${isTask ? "por" : "pago por"} ${person.name}` : ""}
+                  {person ? ` · ${isTask ? "por" : "pago por"} ${person}` : ""}
                   {" · "}
                   {formatDateLabel(item.date)}
                 </Text>
               </View>
-              {!isTask ? (
+              {!isTask && item.value != null ? (
                 <Text style={styles.entryValue}>{formatCurrency(item.value)}</Text>
               ) : null}
             </View>
@@ -365,8 +436,14 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     paddingHorizontal: 24,
   },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: "500",
+  },
   emptyText: {
-    fontSize: 14.5,
+    fontSize: 15,
     fontWeight: "700",
     color: colors.textDark,
     marginTop: 10,
