@@ -125,6 +125,59 @@ function getPriorityConfig(priority) {
   );
 }
 
+/**
+ * Status das tarefas da moradia (SCRUM-146)
+ */
+export const STATUS_OPTIONS = [
+  {
+    id: "A fazer",
+    label: "A fazer",
+    sub: "Pendente",
+    icon: "hourglass-outline",
+    color: "#2B6CB0",
+    bgColor: "#EBF8FF",
+    borderColor: "#BEE3F8",
+    dotColor: "#3182CE",
+  },
+  {
+    id: "Em andamento",
+    label: "Em andamento",
+    sub: "Em execução",
+    icon: "play-circle-outline",
+    color: "#C05621",
+    bgColor: "#FFFAF0",
+    borderColor: "#FEEBC8",
+    dotColor: "#DD6B20",
+  },
+  {
+    id: "Feito",
+    label: "Feito",
+    sub: "Concluída",
+    icon: "checkmark-circle",
+    color: "#276749",
+    bgColor: "#F0FFF4",
+    borderColor: "#C6F6D5",
+    dotColor: "#38A169",
+  },
+  {
+    id: "Cancelada",
+    label: "Cancelada",
+    sub: "Cancelada",
+    icon: "close-circle-outline",
+    color: "#64748B",
+    bgColor: "#F1F5F9",
+    borderColor: "#CBD5E1",
+    dotColor: "#94A3B8",
+  },
+];
+
+export function getStatusConfig(status) {
+  return (
+    STATUS_OPTIONS.find((s) => s.id === status) ||
+    STATUS_OPTIONS[0]
+  );
+}
+
 const WEEKDAY_NAMES = [
   { id: 1, label: "Segunda", short: "Seg" },
   { id: 2, label: "Terça", short: "Ter" },
@@ -476,6 +529,7 @@ function TaskCardItem({
   onLongPress,
   onToggleDone,
   onAssignPress,
+  onChangeStatusPress,
 }) {
   const microShakeAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -571,7 +625,12 @@ function TaskCardItem({
     : { marginBottom: 10 };
 
   const priorityConfig = getPriorityConfig(item.priority);
+  const statusConfig = getStatusConfig(
+    item.status || (item.done ? "Feito" : "A fazer")
+  );
   const scheduleInfo = getScheduleBadgeInfo(item);
+  const isCanceled = item.status === "Cancelada";
+  const isDoneOrCanceled = item.done || item.status === "Feito" || isCanceled;
 
   return (
     <Animated.View
@@ -586,9 +645,10 @@ function TaskCardItem({
         <Pressable
           style={({ pressed }) => [
             styles.taskItem,
-            isMyPendingTask && styles.taskItemMyPending,
+            isMyPendingTask && !isDoneOrCanceled && styles.taskItemMyPending,
             isSelectedForDeletion && styles.taskItemSelectedForDeletion,
             item.done && styles.taskItemDone,
+            isCanceled && styles.taskItemCanceled,
             pressed && { opacity: 0.9 },
           ]}
           onPress={onPress}
@@ -618,20 +678,57 @@ function TaskCardItem({
               <View
                 style={[
                   styles.checkbox,
-                  isMyPendingTask && styles.checkboxMyPending,
+                  isMyPendingTask && !isDoneOrCanceled && styles.checkboxMyPending,
                   item.done && styles.checkboxDone,
+                  isCanceled && styles.checkboxCanceled,
                 ]}
               >
-                {item.done ? (
+                {isCanceled ? (
+                  <Ionicons name="close" size={13} color="#94A3B8" />
+                ) : item.done ? (
                   <Ionicons name="checkmark" size={15} color={colors.white} />
                 ) : null}
               </View>
             </Pressable>
           )}
 
-          {/* Conteúdo textual da Tarefa com Retângulo de Prioridade */}
+          {/* Conteúdo textual da Tarefa com Retângulo de Prioridade e Badge de Status */}
           <View style={styles.taskTextWrap}>
             <View style={styles.taskBadgesRow}>
+              {/* Badge de Status Interativa (Toque para alterar o status - SCRUM-146) */}
+              <Pressable
+                onPress={onChangeStatusPress}
+                hitSlop={6}
+                style={({ pressed }) => [
+                  styles.statusBadge,
+                  {
+                    backgroundColor: statusConfig.bgColor,
+                    borderColor: statusConfig.borderColor,
+                  },
+                  pressed && { opacity: 0.75 },
+                ]}
+              >
+                <Ionicons
+                  name={statusConfig.icon}
+                  size={11}
+                  color={statusConfig.color}
+                />
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    { color: statusConfig.color },
+                  ]}
+                >
+                  {statusConfig.label}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={9}
+                  color={statusConfig.color}
+                  style={{ marginLeft: 1 }}
+                />
+              </Pressable>
+
               {/* Retângulo de Prioridade */}
               <View
                 style={[
@@ -640,21 +737,21 @@ function TaskCardItem({
                     backgroundColor: priorityConfig.bgColor,
                     borderColor: priorityConfig.tagBorder,
                   },
-                  item.done && styles.priorityBadgeDone,
+                  isDoneOrCanceled && styles.priorityBadgeDone,
                 ]}
               >
                 <View
                   style={[
                     styles.priorityDot,
                     { backgroundColor: priorityConfig.dotColor },
-                    item.done && { opacity: 0.5 },
+                    isDoneOrCanceled && { opacity: 0.5 },
                   ]}
                 />
                 <Text
                   style={[
                     styles.priorityBadgeText,
                     { color: priorityConfig.color },
-                    item.done && { opacity: 0.7 },
+                    isDoneOrCanceled && { opacity: 0.7 },
                   ]}
                 >
                   {priorityConfig.label.toUpperCase()}
@@ -670,7 +767,7 @@ function TaskCardItem({
                       backgroundColor: scheduleInfo.bgColor,
                       borderColor: scheduleInfo.borderColor,
                     },
-                    item.done && styles.scheduleBadgeDone,
+                    isDoneOrCanceled && styles.scheduleBadgeDone,
                   ]}
                 >
                   <Ionicons
@@ -682,7 +779,7 @@ function TaskCardItem({
                     style={[
                       styles.scheduleBadgeText,
                       { color: scheduleInfo.color },
-                      item.done && { opacity: 0.7 },
+                      isDoneOrCanceled && { opacity: 0.7 },
                     ]}
                   >
                     {scheduleInfo.text}
@@ -691,7 +788,7 @@ function TaskCardItem({
               ) : null}
 
               {/* Destaque "SUA VEZ" para tarefas pendentes do morador atual */}
-              {isMyPendingTask && !isSelectedForDeletion ? (
+              {isMyPendingTask && !isSelectedForDeletion && !isDoneOrCanceled ? (
                 <View style={styles.myTaskNoticeBadge}>
                   <Ionicons name="person" size={10} color={colors.white} />
                   <Text style={styles.myTaskNoticeBadgeText}>SUA VEZ</Text>
@@ -702,9 +799,10 @@ function TaskCardItem({
             <Text
               style={[
                 styles.taskTitle,
-                isMyPendingTask && styles.taskTitleMyPending,
+                isMyPendingTask && !isDoneOrCanceled && styles.taskTitleMyPending,
                 isSelectedForDeletion && styles.taskTitleSelected,
                 item.done && styles.taskTitleDone,
+                isCanceled && styles.taskTitleCanceled,
               ]}
             >
               {item.title}
@@ -712,7 +810,10 @@ function TaskCardItem({
 
             {item.description ? (
               <Text
-                style={[styles.taskDesc, item.done && styles.taskDescDone]}
+                style={[
+                  styles.taskDesc,
+                  isDoneOrCanceled && styles.taskDescDone,
+                ]}
                 numberOfLines={2}
               >
                 {item.description}
@@ -784,6 +885,7 @@ export default function TasksScreen() {
     residents,
     residentById,
     toggleTaskDone,
+    updateTaskStatus,
     assignTask,
     addTask,
     updateTask,
@@ -793,6 +895,7 @@ export default function TasksScreen() {
 
   // Estados dos modais
   const [assignModalTask, setAssignModalTask] = useState(null);
+  const [statusModalTask, setStatusModalTask] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMode, setModalMode] = useState("create"); // "create" | "edit"
   const [editingTask, setEditingTask] = useState(null);
@@ -808,6 +911,7 @@ export default function TasksScreen() {
     Diária: false,
     Semanal: false,
     Mensal: false,
+    Arquivadas: false,
   });
 
   // Estados do formulário de criação/edição de tarefas
@@ -815,6 +919,7 @@ export default function TasksScreen() {
   const [formDescription, setFormDescription] = useState("");
   const [formRecurrence, setFormRecurrence] = useState("Única");
   const [formPriority, setFormPriority] = useState("Média");
+  const [formStatus, setFormStatus] = useState("A fazer");
   const [formAssigneeId, setFormAssigneeId] = useState(null);
   const [formDueDate, setFormDueDate] = useState("");
   const [formDueTime, setFormDueTime] = useState("");
@@ -849,6 +954,7 @@ export default function TasksScreen() {
   useEffect(() => {
     if (!isFocused) {
       setAssignModalTask(null);
+      setStatusModalTask(null);
       setModalVisible(false);
       setSelectedTaskIds([]);
       setDeletingTaskIds([]);
@@ -981,6 +1087,7 @@ export default function TasksScreen() {
     setFormDescription("");
     setFormRecurrence(defaultRecurrence || "Única");
     setFormPriority(defaultPriority || "Média");
+    setFormStatus("A fazer");
     setFormAssigneeId(currentResidentId || null);
     setFormDueDate("");
     setFormDueTime("");
@@ -1007,6 +1114,7 @@ export default function TasksScreen() {
         : task.recurrence
     );
     setFormPriority(task.priority || "Média");
+    setFormStatus(task.status || (task.done ? "Feito" : "A fazer"));
     setFormAssigneeId(task.assigneeId || null);
     setFormDueDate(task.dueDate ? formatDateToBR(task.dueDate) : "");
     setFormDueTime(task.dueTime || "");
@@ -1023,6 +1131,7 @@ export default function TasksScreen() {
     setFormDescription("");
     setFormRecurrence("Única");
     setFormPriority("Média");
+    setFormStatus("A fazer");
     setFormAssigneeId(null);
     setFormDueDate("");
     setFormDueTime("");
@@ -1089,6 +1198,7 @@ export default function TasksScreen() {
       assigneeId: formAssigneeId,
       recurrence: formRecurrence,
       priority: formPriority,
+      status: formStatus,
       dueDate: parsedDueDate,
       dueTime: parsedDueTime,
       weekDay: parsedWeekDay,
@@ -1099,18 +1209,32 @@ export default function TasksScreen() {
       addTask(taskPayload);
 
       // Abre a pasta correspondente para visualizar a tarefa criada
-      setOpenFolders((prev) => ({
-        ...prev,
-        [formRecurrence]: true,
-      }));
+      if (formStatus === "Feito" || formStatus === "Cancelada") {
+        setOpenFolders((prev) => ({
+          ...prev,
+          Arquivadas: true,
+        }));
+      } else {
+        setOpenFolders((prev) => ({
+          ...prev,
+          [formRecurrence]: true,
+        }));
+      }
     } else if (modalMode === "edit" && editingTask) {
       updateTask(editingTask.id, taskPayload);
 
       // Abre a pasta para onde a tarefa foi destinada caso tenha mudado
-      setOpenFolders((prev) => ({
-        ...prev,
-        [formRecurrence]: true,
-      }));
+      if (formStatus === "Feito" || formStatus === "Cancelada") {
+        setOpenFolders((prev) => ({
+          ...prev,
+          Arquivadas: true,
+        }));
+      } else {
+        setOpenFolders((prev) => ({
+          ...prev,
+          [formRecurrence]: true,
+        }));
+      }
     }
 
     handleCloseModal();
@@ -1171,7 +1295,34 @@ export default function TasksScreen() {
     }, 230);
   }
 
-  // Agrupamento e ordenação de tarefas por pasta de recorrência e nível de prioridade (Alta -> Média -> Baixa)
+  // Verifica se a tarefa está arquivada (Feito ou Cancelada) - SCRUM-146
+  const isTaskArchived = (task) =>
+    task.status === "Feito" ||
+    task.status === "Cancelada" ||
+    task.done === true;
+
+  // Lista de tarefas arquivadas (Feito ou Cancelada)
+  const archivedTasks = useMemo(() => {
+    return tasks
+      .filter((t) => isTaskArchived(t))
+      .sort((a, b) => {
+        const dateA = a.lastCompletedAt || a.updatedAt || "";
+        const dateB = b.lastCompletedAt || b.updatedAt || "";
+        if (dateA && dateB) return dateB.localeCompare(dateA);
+        return (b.id || "").localeCompare(a.id || "");
+      });
+  }, [tasks]);
+
+  const archivedDoneCount = useMemo(
+    () => archivedTasks.filter((t) => t.status === "Feito" || (!t.status && t.done)).length,
+    [archivedTasks]
+  );
+  const archivedCanceledCount = useMemo(
+    () => archivedTasks.filter((t) => t.status === "Cancelada").length,
+    [archivedTasks]
+  );
+
+  // Agrupamento e ordenação de tarefas ATIVAS por pasta de recorrência (apenas "A fazer" e "Em andamento")
   const tasksByFolder = useMemo(() => {
     const map = {
       Única: [],
@@ -1181,6 +1332,11 @@ export default function TasksScreen() {
     };
 
     tasks.forEach((task) => {
+      // Tarefas feitas ou canceladas NÃO constam no local de visualização ativa de tarefas
+      if (isTaskArchived(task)) {
+        return;
+      }
+
       const rec =
         task.recurrence === "Sem recorrência" || !task.recurrence
           ? "Única"
@@ -1196,12 +1352,14 @@ export default function TasksScreen() {
     const priorityWeight = { Alta: 1, Média: 2, Baixa: 3 };
 
     // Ordenação em cada pasta:
-    // 1. Tarefas Pendentes primeiro (ordenadas de Alta -> Média -> Baixa)
-    // 2. Tarefas Concluídas ao final (também ordenadas de Alta -> Média -> Baixa)
+    // 1. Tarefas "Em andamento" primeiro, depois "A fazer"
+    // 2. Ordenadas por Prioridade (Alta -> Média -> Baixa)
     Object.keys(map).forEach((key) => {
       map[key].sort((a, b) => {
-        if (a.done !== b.done) {
-          return a.done ? 1 : -1;
+        const inProgA = a.status === "Em andamento" ? 0 : 1;
+        const inProgB = b.status === "Em andamento" ? 0 : 1;
+        if (inProgA !== inProgB) {
+          return inProgA - inProgB;
         }
 
         const pA = priorityWeight[a.priority] || 2;
@@ -1217,13 +1375,13 @@ export default function TasksScreen() {
     return map;
   }, [tasks]);
 
-  // Contagem de tarefas pendentes designadas especificamente para o usuário logado por pasta
+  // Contagem de tarefas pendentes ativas designadas especificamente para o usuário logado por pasta
   const myPendingCountByFolder = useMemo(() => {
     const counts = { Única: 0, Diária: 0, Semanal: 0, Mensal: 0 };
     if (!currentResidentId) return counts;
 
     tasks.forEach((task) => {
-      if (!task.done && task.assigneeId === currentResidentId) {
+      if (!isTaskArchived(task) && task.assigneeId === currentResidentId) {
         const rec =
           task.recurrence === "Sem recorrência" || !task.recurrence
             ? "Única"
@@ -1243,14 +1401,23 @@ export default function TasksScreen() {
   // Estatísticas gerais
   const stats = useMemo(() => {
     const total = tasks.length;
-    const completed = tasks.filter((t) => t.done).length;
-    const pending = total - completed;
+    const archived = archivedTasks.length;
+    const active = total - archived;
+    const inProgress = tasks.filter((t) => !isTaskArchived(t) && t.status === "Em andamento").length;
     const myTotalPending = Object.values(myPendingCountByFolder).reduce(
       (acc, c) => acc + c,
       0
     );
-    return { total, completed, pending, myTotalPending };
-  }, [tasks, myPendingCountByFolder]);
+    return {
+      total,
+      active,
+      archived,
+      inProgress,
+      completed: archivedDoneCount,
+      canceled: archivedCanceledCount,
+      myTotalPending,
+    };
+  }, [tasks, archivedTasks, archivedDoneCount, archivedCanceledCount, myPendingCountByFolder]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -1342,7 +1509,7 @@ export default function TasksScreen() {
           {FOLDERS.map((folder) => {
             const folderTasks = tasksByFolder[folder.id] || [];
             const folderTotal = folderTasks.length;
-            const folderCompleted = folderTasks.filter((t) => t.done).length;
+            const folderInProgress = folderTasks.filter((t) => t.status === "Em andamento").length;
             const myPendingInThisFolder = myPendingCountByFolder[folder.id] || 0;
             const isOpen = !!openFolders[folder.id];
 
@@ -1378,22 +1545,25 @@ export default function TasksScreen() {
                     </View>
 
                     {/* CÍRCULO VERDE DE AVISO (Aparece se o usuário logado tiver tarefas a fazer nessa pasta) */}
-                    {myPendingInThisFolder > 0 ? (
+                    {myPendingInThisFolder > 0 && (
                       <View style={styles.greenAlertBadge}>
                         <View style={styles.greenAlertDot} />
                       </View>
-                    ) : null}
+                    )}
                   </View>
 
                   <View style={styles.folderHeaderTextWrap}>
                     <View style={styles.folderTitleRow}>
                       <Text style={styles.folderTitle}>{folder.label}</Text>
 
-                      {/* Badge Verde de Tarefas do Usuário */}
+                      {/* Badge "X PENDENTES PARA VOCÊ" */}
                       {myPendingInThisFolder > 0 ? (
                         <View style={styles.myTasksPill}>
                           <Text style={styles.myTasksPillText}>
-                            ● {myPendingInThisFolder} para você
+                            {myPendingInThisFolder}{" "}
+                            {myPendingInThisFolder === 1
+                              ? "PARA VOCÊ"
+                              : "PARA VOCÊ"}
                           </Text>
                         </View>
                       ) : null}
@@ -1401,8 +1571,8 @@ export default function TasksScreen() {
 
                     <Text style={styles.folderSub} numberOfLines={1}>
                       {folderTotal === 0
-                        ? "Nenhuma tarefa nesta pasta"
-                        : `${folderTotal} tarefa(s) · ${folderCompleted} feita(s)`}
+                        ? "Nenhuma tarefa ativa nesta pasta"
+                        : `${folderTotal} ativa(s)${folderInProgress > 0 ? ` · ${folderInProgress} em andamento` : ""}`}
                     </Text>
                   </View>
 
@@ -1426,7 +1596,7 @@ export default function TasksScreen() {
                           color="#BDD0C6"
                         />
                         <Text style={styles.emptyFolderText}>
-                          Nenhuma tarefa nesta pasta ainda.
+                          Nenhuma tarefa ativa nesta pasta.
                         </Text>
                         <Pressable
                           style={styles.emptyFolderBtn}
@@ -1475,6 +1645,7 @@ export default function TasksScreen() {
                               onLongPress={() => handleLongPressTask(item.id)}
                               onToggleDone={() => toggleTaskDone(item.id)}
                               onAssignPress={() => setAssignModalTask(item)}
+                              onChangeStatusPress={() => setStatusModalTask(item)}
                             />
                           );
                         })}
@@ -1503,6 +1674,116 @@ export default function TasksScreen() {
               </View>
             );
           })}
+
+          {/* SEÇÃO ARQUIVADAS (Tarefas feitas e canceladas - SCRUM-146) */}
+          <View
+            style={[
+              styles.folderCard,
+              styles.archiveFolderCard,
+            ]}
+          >
+            {/* Cabeçalho da Seção Arquivadas */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.folderHeader,
+                openFolders.Arquivadas && styles.folderHeaderOpen,
+                pressed && { opacity: 0.85 },
+              ]}
+              onPress={() => toggleFolder("Arquivadas")}
+            >
+              <View style={styles.folderIconContainer}>
+                <View
+                  style={[
+                    styles.folderIconWrap,
+                    { backgroundColor: "#F1F5F9" },
+                  ]}
+                >
+                  <Ionicons
+                    name={openFolders.Arquivadas ? "archive" : "archive-outline"}
+                    size={20}
+                    color="#64748B"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.folderHeaderTextWrap}>
+                <View style={styles.folderTitleRow}>
+                  <Text style={[styles.folderTitle, { color: "#475569" }]}>Arquivadas</Text>
+                  <View style={styles.archiveCountBadge}>
+                    <Text style={styles.archiveCountBadgeText}>
+                      {archivedTasks.length}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.folderSub} numberOfLines={1}>
+                  {archivedTasks.length === 0
+                    ? "Nenhuma tarefa arquivada"
+                    : `${archivedTasks.length} arquivada(s) · ${archivedDoneCount} feita(s), ${archivedCanceledCount} cancelada(s)`}
+                </Text>
+              </View>
+
+              <View style={styles.folderChevronWrap}>
+                <Ionicons
+                  name={openFolders.Arquivadas ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={colors.textMuted}
+                />
+              </View>
+            </Pressable>
+
+            {/* Conteúdo da Pasta Arquivadas */}
+            {openFolders.Arquivadas ? (
+              <View style={styles.folderBody}>
+                {archivedTasks.length === 0 ? (
+                  <View style={styles.emptyFolderBox}>
+                    <Ionicons
+                      name="archive-outline"
+                      size={32}
+                      color="#BDD0C6"
+                    />
+                    <Text style={styles.emptyFolderText}>
+                      Nenhuma tarefa feita ou cancelada arquivada ainda.
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.tasksListWrap}>
+                    {archivedTasks.map((item) => {
+                      const assignee = item.assigneeId
+                        ? residentById[item.assigneeId]
+                        : null;
+                      const isAssignedToMe =
+                        !!currentResidentId &&
+                        item.assigneeId === currentResidentId;
+
+                      const isSelectedForDeletion = selectedTaskIds.includes(
+                        item.id
+                      );
+                      const isDeleting = deletingTaskIds.includes(item.id);
+
+                      return (
+                        <TaskCardItem
+                          key={item.id}
+                          item={item}
+                          assignee={assignee}
+                          isAssignedToMe={isAssignedToMe}
+                          isMyPendingTask={false}
+                          isSelectedForDeletion={isSelectedForDeletion}
+                          isDeleting={isDeleting}
+                          isSelectionMode={isSelectionMode}
+                          onPress={() => handleOpenEditModal(item)}
+                          onLongPress={() => handleLongPressTask(item.id)}
+                          onToggleDone={() => toggleTaskDone(item.id)}
+                          onAssignPress={() => setAssignModalTask(item)}
+                          onChangeStatusPress={() => setStatusModalTask(item)}
+                        />
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            ) : null}
+          </View>
         </ScrollView>
 
         {/* FAB ANIMADO (com escala suave, rotação e opacidade estilo Material/iOS) */}
@@ -1611,6 +1892,132 @@ export default function TasksScreen() {
               title="Fechar"
               variant="outline"
               onPress={() => setAssignModalTask(null)}
+              style={{ marginTop: 14 }}
+            />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Modal: Alterar Status da Tarefa (SCRUM-146) */}
+      <Modal visible={!!statusModalTask} transparent animationType="fade">
+        <Pressable
+          style={styles.overlay}
+          onPress={() => setStatusModalTask(null)}
+        >
+          <Pressable
+            style={styles.sheet}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.sheetHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetTitle}>Alterar Status</Text>
+                <Text style={styles.sheetSub} numberOfLines={1}>
+                  Tarefa:{" "}
+                  <Text style={styles.sheetSubBold}>
+                    {statusModalTask?.title}
+                  </Text>
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setStatusModalTask(null)}
+                style={styles.closeIconBtn}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={22} color={colors.textMuted} />
+              </Pressable>
+            </View>
+
+            {/* Opções de Status */}
+            <View style={styles.statusOptionsList}>
+              {STATUS_OPTIONS.map((opt) => {
+                const currentStatus =
+                  statusModalTask?.status ||
+                  (statusModalTask?.done ? "Feito" : "A fazer");
+                const isSelected = currentStatus === opt.id;
+
+                return (
+                  <Pressable
+                    key={opt.id}
+                    style={({ pressed }) => [
+                      styles.statusOptionRow,
+                      isSelected && {
+                        backgroundColor: opt.bgColor,
+                        borderColor: opt.borderColor,
+                      },
+                      pressed && { opacity: 0.8 },
+                    ]}
+                    onPress={() => {
+                      if (statusModalTask) {
+                        triggerSmoothLayoutAnimation();
+                        updateTaskStatus(statusModalTask.id, opt.id);
+                        // Se o novo status for Feito ou Cancelada, abre a pasta Arquivadas
+                        if (opt.id === "Feito" || opt.id === "Cancelada") {
+                          setOpenFolders((prev) => ({
+                            ...prev,
+                            Arquivadas: true,
+                          }));
+                        } else {
+                          // Se reabriu, abre a pasta da tarefa correspondente
+                          const rec =
+                            statusModalTask.recurrence === "Sem recorrência" ||
+                            !statusModalTask.recurrence
+                              ? "Única"
+                              : statusModalTask.recurrence;
+                          setOpenFolders((prev) => ({
+                            ...prev,
+                            [rec]: true,
+                          }));
+                        }
+                        setStatusModalTask(null);
+                      }
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.statusOptionIconWrap,
+                        {
+                          backgroundColor: opt.bgColor,
+                          borderColor: opt.borderColor,
+                        },
+                      ]}
+                    >
+                      <Ionicons name={opt.icon} size={20} color={opt.color} />
+                    </View>
+                    <View style={styles.statusOptionTextWrap}>
+                      <Text
+                        style={[
+                          styles.statusOptionLabel,
+                          {
+                            color: isSelected ? opt.color : colors.textPrimary,
+                          },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                      <Text style={styles.statusOptionSub}>{opt.sub}</Text>
+                    </View>
+                    {isSelected ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={22}
+                        color={opt.color}
+                      />
+                    ) : (
+                      <Ionicons
+                        name="ellipse-outline"
+                        size={20}
+                        color={colors.border}
+                      />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <PrimaryButton
+              title="Fechar"
+              variant="outline"
+              onPress={() => setStatusModalTask(null)}
               style={{ marginTop: 14 }}
             />
           </Pressable>
@@ -2203,6 +2610,60 @@ export default function TasksScreen() {
                   </View>
                 </View>
 
+                {/* Campo: Status da Tarefa (SCRUM-146) */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.fieldLabel}>Status da tarefa</Text>
+                  <View style={styles.statusGrid}>
+                    {STATUS_OPTIONS.map((opt) => {
+                      const isSelected = formStatus === opt.id;
+                      return (
+                        <Pressable
+                          key={opt.id}
+                          style={[
+                            styles.statusOptionCard,
+                            isSelected && {
+                              backgroundColor: opt.bgColor,
+                              borderColor: opt.borderColor,
+                              borderWidth: 2,
+                            },
+                          ]}
+                          onPress={() => setFormStatus(opt.id)}
+                        >
+                          <View
+                            style={[
+                              styles.priorityOptionDot,
+                              { backgroundColor: opt.dotColor },
+                            ]}
+                          />
+                          <View style={styles.priorityOptionContent}>
+                            <Text
+                              style={[
+                                styles.priorityOptionLabel,
+                                isSelected && {
+                                  color: opt.color,
+                                  fontWeight: "800",
+                                },
+                              ]}
+                            >
+                              {opt.label}
+                            </Text>
+                            <Text style={styles.priorityOptionSub}>
+                              {opt.sub}
+                            </Text>
+                          </View>
+                          {isSelected ? (
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={16}
+                              color={opt.color}
+                            />
+                          ) : null}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
                 {/* Campo: Atribuir a um Membro */}
                 <View style={styles.fieldGroup}>
                   <Text style={styles.fieldLabel}>Designar responsável</Text>
@@ -2707,6 +3168,22 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
   },
+  archiveFolderCard: {
+    borderStyle: "dashed",
+    borderColor: "#CBD5E1",
+    marginTop: 8,
+  },
+  archiveCountBadge: {
+    backgroundColor: "#E2E8F0",
+    paddingVertical: 2,
+    paddingHorizontal: 7,
+    borderRadius: 10,
+  },
+  archiveCountBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#475569",
+  },
   folderChevronWrap: {
     marginLeft: 8,
     padding: 4,
@@ -2788,6 +3265,11 @@ const styles = StyleSheet.create({
     borderColor: "#E0E8E3",
     opacity: 0.82,
   },
+  taskItemCanceled: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+    opacity: 0.75,
+  },
   selectionCircle: {
     width: 24,
     height: 24,
@@ -2831,6 +3313,10 @@ const styles = StyleSheet.create({
   checkboxDone: {
     backgroundColor: colors.accent,
   },
+  checkboxCanceled: {
+    borderColor: "#CBD5E1",
+    backgroundColor: "#F1F5F9",
+  },
   taskTextWrap: {
     flex: 1,
     marginRight: 8,
@@ -2841,6 +3327,20 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 6,
     marginBottom: 5,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 2.5,
+    paddingHorizontal: 7,
+    borderRadius: 6,
+    borderWidth: 1,
+    gap: 3,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
   priorityBadge: {
     flexDirection: "row",
@@ -2897,6 +3397,10 @@ const styles = StyleSheet.create({
   taskTitleDone: {
     textDecorationLine: "line-through",
     color: colors.textMuted,
+  },
+  taskTitleCanceled: {
+    textDecorationLine: "line-through",
+    color: "#94A3B8",
   },
   taskDesc: {
     fontSize: 12,
@@ -3150,6 +3654,57 @@ const styles = StyleSheet.create({
   },
   priorityOptionSub: {
     fontSize: 10,
+    color: colors.textMuted,
+    marginTop: 1,
+  },
+  statusGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  statusOptionCard: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.surface,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  statusOptionsList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  statusOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#E2EAE5",
+    backgroundColor: colors.surface,
+    gap: 12,
+  },
+  statusOptionIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  statusOptionTextWrap: {
+    flex: 1,
+  },
+  statusOptionLabel: {
+    fontSize: 14.5,
+    fontWeight: "800",
+  },
+  statusOptionSub: {
+    fontSize: 12,
     color: colors.textMuted,
     marginTop: 1,
   },

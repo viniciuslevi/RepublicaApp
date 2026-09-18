@@ -9,7 +9,12 @@ function normalizeTask(raw) {
     assigneeId: raw.assigneeId || null,
     recurrence: raw.recurrence,
     priority: raw.priority,
-    done: raw.done,
+    status: raw.status && !(raw.done && raw.status === "A fazer")
+      ? raw.status
+      : raw.done
+      ? "Feito"
+      : "A fazer",
+    done: raw.done || raw.status === "Feito" || raw.status === "Cancelada",
     lastCompletedAt: raw.lastCompletedAt || null,
     nextDueDate: raw.nextDueDate || null,
     dueDate: raw.dueDate || null,
@@ -36,6 +41,14 @@ export const taskApi = {
 
   async update(residenceId, taskId, input) {
     const data = await apiRequest(`/residences/${residenceId}/tasks/${taskId}`, { method: "PATCH", body: input });
+    return normalizeTask(data);
+  },
+
+  async updateStatus(residenceId, taskId, status) {
+    const data = await apiRequest(`/residences/${residenceId}/tasks/${taskId}/status`, {
+      method: "PATCH",
+      body: { status },
+    });
     return normalizeTask(data);
   },
 
